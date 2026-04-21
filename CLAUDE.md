@@ -26,7 +26,7 @@ Hospitality Agents is an invite-only dashboard for F&B operators (restaurants, b
 | AI — images     | fal.ai (Flux)                       | Server-side only                                                         |
 | AI — video      | Creatomate REST                     | Server-side only                                                         |
 | Hosting         | Vercel                              | Single repo, single deploy                                               |
-| Dev server port | **5000**                            | Not Next.js default 3000 — `pnpm dev` already wired to `-p 5000`         |
+| Dev server port | **3000** (Next.js default)          | Originally planned 5000, but macOS AirPlay Receiver holds that port      |
 
 External SDKs (`@clerk/nextjs`, `@supabase/supabase-js`, `@anthropic-ai/sdk`, `@fal-ai/client`, Creatomate client) are **not installed until their feature ships in Build phase**. Do not pre-install them.
 
@@ -48,7 +48,7 @@ These **add to** the global guardrails in `~/.claude/CLAUDE.md`.
 - **No secrets in git.** `.env.local` is gitignored. `.env.example` is the canonical key list — add a documented placeholder there for every env var, even before the feature that uses it ships.
 - **RLS from day one.** Every Supabase table is row-level-security protected by `user_id` or `brand_id` tied to the Clerk JWT sub. No unprotected tables, not even for scratch work.
 - **Generation pipeline endpoint.** `/api/campaigns/[id]/generate` is the single orchestrator for fal.ai + Claude + Creatomate. See the flow diagram and cost model in `docs/architecture.md`.
-- **Dev server port is 5000.** `pnpm dev` and `pnpm start` both bind to `-p 5000`. Any docs, scripts, or callback URLs that assume 3000 are wrong.
+- **Dev server port is 3000** (Next.js default). Do not override unless you have a specific reason — port 5000 is held by macOS AirPlay Receiver on every macOS dev machine.
 - **One agent only.** Campaign Creator is the sole agent in MVP. The dashboard may render "Coming soon" placeholder cards for the post-MVP agents listed in `docs/project-spec.md` (Review Response, Reservation Assist, Menu Sync, Staff Comms, Promo Planner), but those are UI-only — no routes, no data models, no logic.
 - **English only.** No i18n layer, no locale files, no translation scaffolding.
 - **Single venue per user.** Schema in `docs/architecture.md` supports multi-location via `brand_id`, but the MVP UI exposes exactly one brand/venue per user. Do not build a location switcher.
@@ -82,9 +82,9 @@ Team roster lives in `~/.claude/CLAUDE.md`. For this project, the most relevant 
 ## Commands
 
 ```bash
-pnpm dev          # Next.js dev server on :5000
+pnpm dev          # Next.js dev server on :3000
 pnpm build        # Production build
-pnpm start        # Production server on :5000
+pnpm start        # Production server on :3000
 pnpm lint         # ESLint flat config
 pnpm type-check   # tsc --noEmit
 pnpm format       # Prettier write
