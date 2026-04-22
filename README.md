@@ -1,36 +1,48 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hospitality Agents
 
-## Getting Started
+An invite-only dashboard for F&B operators (restaurants, bars, cafes, hotels with dining). Operators pick AI agents that automate operational tasks.
 
-First, run the development server:
+**MVP ships one agent — Campaign Creator.** It takes a brand profile and uploaded product photos and returns a downloadable campaign package: enhanced images, short motion videos, captions, and hashtags. No social publishing integration.
+
+---
+
+## Prerequisites
+
+- Node 22 (pin via `.nvmrc`)
+- pnpm 10 (`corepack enable && corepack prepare pnpm@10 --activate`)
+
+## Setup
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+git clone git@github-personal-git:LukasAVB/hospitality-agents.git
+cd hospitality-agents
+pnpm install
+cp .env.example .env.local   # fill in values (get from a team member via secure channel)
+pnpm dev                     # → http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Commands
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+pnpm dev          # Next.js dev server on :3000
+pnpm build        # Production build
+pnpm start        # Production server on :3000
+pnpm lint         # ESLint
+pnpm type-check   # tsc --noEmit
+pnpm format       # Prettier write
+pnpm format:check # Prettier check (CI)
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Docs
 
-## Learn More
+| File                     | What it contains                                          |
+| ------------------------ | --------------------------------------------------------- |
+| `docs/project-spec.md`   | Product requirements, user flows, constraints             |
+| `docs/architecture.md`   | System design, DB schema, API surface, cost model         |
+| `docs/project-status.md` | Current build phase, task list, decisions log             |
+| `CLAUDE.md`              | Project rules and conventions for AI-assisted development |
+| `ONBOARDING.md`          | Full contributor onboarding guide                         |
 
-To learn more about Next.js, take a look at the following resources:
+## Stack
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Next.js 16.2 (App Router) · React 19 · TypeScript · Tailwind v4 · shadcn/ui · Clerk · Supabase · Anthropic Claude API · fal.ai · Creatomate · Vercel
