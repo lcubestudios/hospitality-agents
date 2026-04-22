@@ -46,7 +46,8 @@ These **add to** the global guardrails in `~/.claude/CLAUDE.md`.
 
 - **Keys never leave the server.** All external AI calls (Claude, fal.ai, Creatomate) run inside Route Handlers or Server Actions. The browser never holds provider keys.
 - **No secrets in git.** `.env.local` is gitignored. `.env.example` is the canonical key list — add a documented placeholder there for every env var, even before the feature that uses it ships.
-- **RLS from day one.** Every Supabase table is row-level-security protected by `user_id` or `brand_id` tied to the Clerk JWT sub. No unprotected tables, not even for scratch work.
+- **Auth is deferred to Build phase 2.** Campaign Creator ships first against a stubbed dev identity. See `docs/architecture.md` → "Auth Deferral Strategy" for the contract. The stub lives in `src/lib/auth.ts` as `DEV_USER_ID`; swap it for Clerk when auth lands.
+- **RLS from day one, even with stubbed auth.** Every Supabase table is row-level-security protected by `user_id` or `brand_id`. Policies read `auth.uid()` from Supabase — the stub logs in the dev user as a real auth row, it does not bypass RLS. Do not disable RLS "just for development."
 - **Generation pipeline endpoint.** `/api/campaigns/[id]/generate` is the single orchestrator for fal.ai + Claude + Creatomate. See the flow diagram and cost model in `docs/architecture.md`.
 - **Dev server port is 3000** (Next.js default). Do not override unless you have a specific reason — port 5000 is held by macOS AirPlay Receiver on every macOS dev machine.
 - **One agent only.** Campaign Creator is the sole agent in MVP. The dashboard may render "Coming soon" placeholder cards for the post-MVP agents listed in `docs/project-spec.md` (Review Response, Reservation Assist, Menu Sync, Staff Comms, Promo Planner), but those are UI-only — no routes, no data models, no logic.
@@ -73,6 +74,8 @@ Team roster lives in `~/.claude/CLAUDE.md`. For this project, the most relevant 
 - Do not install Clerk, Supabase, Anthropic, fal.ai, or Creatomate SDKs until their feature is actively being built.
 - Do not scaffold agents beyond Campaign Creator. Placeholder cards are fine; routes and data models are not.
 - Do not write tests before the feature exists (global rule, restated because it bites on greenfield work).
+- Do not disable RLS or skip policies just because auth is stubbed. The dev user logs in for real; policies apply.
+- Do not sprinkle `DEV_USER_ID` across call sites — all reads go through `getCurrentUserId()` in `src/lib/auth.ts` so the Clerk swap stays one line.
 - Do not edit `docs/project-spec.md` without explicit user approval.
 - Do not edit `docs/changelog.md` — semantic-release owns it.
 - Do not commit directly to `main`. Feature branches only.

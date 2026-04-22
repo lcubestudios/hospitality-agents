@@ -1,6 +1,6 @@
 # Project Status — Hospitality Agents
 
-## Current Phase: Setup (PSB Framework)
+## Current Phase: Setup (PSB Framework) — closing out
 
 ### PSB Progress
 
@@ -18,8 +18,8 @@
 | (S) Husky + commitlint + semantic-release | Done — conventional commits enforced                      |
 | (S) GitHub Actions CI + release workflow  | Done — `.github/workflows/`                               |
 | (S) Dev server verified                   | Done — boots on port 3000 (5000 blocked by macOS AirPlay) |
-| (S) GitHub repo — push to remote          | **Next up — user owns this step**                         |
-| (S) Plugins, MCP servers, slash commands  | Pending                                                   |
+| (S) GitHub repo — push to remote          | Done — `github.com/LukasAVB/hospitality-agents` (private) |
+| (S) Plugins, MCP servers, slash commands  | Pending — deferred to next session                        |
 | (B) Build                                 | Not started                                               |
 
 ---
@@ -36,10 +36,11 @@
 | Language                | English only at launch                                                                                        |
 | Stack                   | Next.js 16.2 + React 19 + Tailwind v4 + shadcn + Clerk + Supabase + Claude API + fal.ai + Creatomate + Vercel |
 | Dev port                | 3000 (was 5000 in architecture doc; changed because macOS AirPlay Receiver holds 5000)                        |
+| **Build sequencing**    | **Campaign Creator first, then auth (Clerk).** Auth is stubbed with `DEV_USER_ID` until phase 2.              |
 
 ---
 
-## Scaffold summary (what exists on disk)
+## Scaffold summary (what exists on disk and on remote)
 
 - Next.js 16.2 App Router + TS strict + Tailwind v4 + shadcn primitives (Button, Card, Input, Label, Dialog)
 - ESLint flat config + Prettier + prettier-plugin-tailwindcss
@@ -47,18 +48,35 @@
 - semantic-release wired to `docs/changelog.md` (not yet created — will appear on first release)
 - GitHub Actions CI (lint → type-check → build) and release workflow (main-only, gated on CI)
 - `.env.example` enumerates Clerk, Supabase, Anthropic, fal.ai, Creatomate, Sentry with signup links
-- Project `CLAUDE.md` covers eight project-specific hard rules
+- Project `CLAUDE.md` covers 10 project-specific hard rules
 - External service SDKs **not yet installed** — arrive in Build phase when their feature lands
 
-Git: `main` branch, two commits locally. Remote `github-personal-git:LukasAVB/hospitality-agents.git` not yet added — user will push.
+Git: `main` branch, 4 commits, pushed to `github.com/LukasAVB/hospitality-agents`. SSH remote `github-personal-git:LukasAVB/hospitality-agents.git` configured via `~/.ssh/config` host alias.
+
+---
+
+## Build phase plan (next session onwards)
+
+Order of features is **deliberate**. Auth is stubbed, not skipped — the data model exercises RLS from the first migration.
+
+1. **Supabase project + first migration** — create project, wire client, run initial schema (`users`, `brands`, `campaigns`, `assets`, `generation_jobs`) with RLS policies. Seed the dev user.
+2. **Auth stub** — `src/lib/auth.ts` exports `DEV_USER_ID` and `getCurrentUserId()`. Every Supabase call routes through the helper.
+3. **Brand profile CRUD** — simple form + Supabase write; validates the stub → RLS path end-to-end.
+4. **Campaign Creator wizard (images)** — upload product photo → fal.ai Flux image-to-image → preview + download. Single post, no video yet.
+5. **Campaign Creator (copy + hashtags)** — add Claude Sonnet for caption + hashtag generation, prompt-cache the brand guide.
+6. **Campaign Creator (video)** — wire Creatomate, assemble enhanced image + caption overlay into a short clip.
+7. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
+8. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, replace `getCurrentUserId()` body. Wire Clerk→Supabase JWT template.
+9. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
+
+Deployment and production readiness items (Vercel prod env vars, Sentry, uptime monitoring) happen after step 5 once there's a real pipeline to observe.
 
 ---
 
 ## Next session: pick up here
 
-1. **Push to GitHub** (user action) — add remote, push main, confirm CI workflow runs green
-2. **Configure project MCP servers + slash commands** — Supabase MCP, any others needed
-3. **Begin Build phase** — first feature: auth flow (Clerk middleware + sign-in page) or brand profile CRUD, depending on priority
+1. **Configure MCP servers + slash commands** — Supabase MCP is the main one; any others as needed
+2. **Start Build step 1** — Supabase project creation (user action, then scaffold migration locally)
 
 ---
 

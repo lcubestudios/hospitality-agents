@@ -22,6 +22,8 @@ jobs:
       issues: write
       pull-requests: write
       id-token: write
+      checks: read
+      actions: read
 
     steps:
       - name: Wait for CI to succeed

@@ -1,6 +1,8 @@
 # Architecture — Hospitality Agents
 
-> Confirmed stack: **Next.js 15 (App Router) + Clerk + Supabase (Postgres + Storage) + Anthropic Claude API + fal.ai (Flux) + Creatomate + Vercel**. All TypeScript. Single repo, single deploy.
+> Confirmed stack: **Next.js 16 (App Router) + Clerk + Supabase (Postgres + Storage) + Anthropic Claude API + fal.ai (Flux) + Creatomate + Vercel**. All TypeScript. Single repo, single deploy.
+>
+> **Build phase sequencing:** Auth (Clerk) is **deferred** — the first Build-phase feature is Campaign Creator, not sign-in. See [Auth Deferral Strategy](#auth-deferral-strategy) below for how the scaffold compensates while Clerk is absent.
 
 ---
 
@@ -31,17 +33,17 @@
 
 ## Component Map
 
-| Layer | Tech | Responsibility |
-|-------|------|----------------|
-| UI shell | Next.js App Router + Tailwind v4 + shadcn/ui | Routes, layouts, auth-gated pages |
-| State | React Context + URL state | Brand profile, active campaign, form state |
-| Auth | Clerk (middleware + `<SignIn />`) | Invite-only access, session management |
-| DB | Supabase Postgres + RLS | Brands, campaigns, assets, users |
-| File storage | Supabase Storage | Uploaded product photos, AI outputs, ZIP archives |
-| LLM | Anthropic SDK (`@anthropic-ai/sdk`) | Captions, hashtags, campaign briefs |
-| Image AI | fal.ai SDK (`@fal-ai/client`) | Photo enhancement, upscaling, generation |
-| Video | Creatomate REST API | Short motion clips from image + text inputs |
-| Hosting | Vercel | Next.js deploy, preview URLs, edge functions |
+| Layer        | Tech                                         | Responsibility                                    |
+| ------------ | -------------------------------------------- | ------------------------------------------------- |
+| UI shell     | Next.js App Router + Tailwind v4 + shadcn/ui | Routes, layouts, auth-gated pages                 |
+| State        | React Context + URL state                    | Brand profile, active campaign, form state        |
+| Auth         | Clerk (middleware + `<SignIn />`)            | Invite-only access, session management            |
+| DB           | Supabase Postgres + RLS                      | Brands, campaigns, assets, users                  |
+| File storage | Supabase Storage                             | Uploaded product photos, AI outputs, ZIP archives |
+| LLM          | Anthropic SDK (`@anthropic-ai/sdk`)          | Captions, hashtags, campaign briefs               |
+| Image AI     | fal.ai SDK (`@fal-ai/client`)                | Photo enhancement, upscaling, generation          |
+| Video        | Creatomate REST API                          | Short motion clips from image + text inputs       |
+| Hosting      | Vercel                                       | Next.js deploy, preview URLs, edge functions      |
 
 ---
 
@@ -105,6 +107,7 @@ generation_jobs (
 ```
 
 **RLS policies** (every query enforced at DB layer):
+
 - `brands`: `user_id = auth.jwt()->>'sub'`
 - `campaigns`: via `brand_id` → `brands.user_id`
 - `assets`: via `campaign_id` → `campaigns.brand_id` → `brands.user_id`
@@ -131,6 +134,7 @@ The core flow orchestrated by `POST /api/campaigns/generate`:
 **Resilience:** each step writes to `generation_jobs` so a failed campaign can be resumed without repeating completed work. No background queue at MVP — Next.js Route Handlers run the pipeline inline with streaming response. If latency becomes an issue, migrate to a Supabase edge function or Fly.io worker.
 
 **Cost controls:**
+
 - Claude prompt caching on system prompt + brand guide (saves 90% on cached tokens)
 - Cap `post_count` at 5 per campaign for MVP
 - Store `metadata.cost` per asset for usage analytics
@@ -139,17 +143,17 @@ The core flow orchestrated by `POST /api/campaigns/generate`:
 
 ## API Surface
 
-| Route | Method | Purpose |
-|-------|--------|---------|
-| `/api/brands` | GET, POST | List user's brands; create new brand |
-| `/api/brands/[id]` | GET, PATCH, DELETE | Brand CRUD |
-| `/api/assets/upload` | POST | Returns signed Supabase Storage upload URL |
-| `/api/campaigns` | GET, POST | List user's campaigns; create draft |
-| `/api/campaigns/[id]` | GET, DELETE | Campaign detail and delete |
-| `/api/campaigns/[id]/generate` | POST | Kick off generation pipeline (streaming response) |
-| `/api/campaigns/[id]/download` | GET | Returns signed URL for ZIP archive |
-| `/api/webhooks/fal` | POST | Async fal.ai job completion (if using webhook mode) |
-| `/api/webhooks/creatomate` | POST | Async Creatomate render completion |
+| Route                          | Method             | Purpose                                             |
+| ------------------------------ | ------------------ | --------------------------------------------------- |
+| `/api/brands`                  | GET, POST          | List user's brands; create new brand                |
+| `/api/brands/[id]`             | GET, PATCH, DELETE | Brand CRUD                                          |
+| `/api/assets/upload`           | POST               | Returns signed Supabase Storage upload URL          |
+| `/api/campaigns`               | GET, POST          | List user's campaigns; create draft                 |
+| `/api/campaigns/[id]`          | GET, DELETE        | Campaign detail and delete                          |
+| `/api/campaigns/[id]/generate` | POST               | Kick off generation pipeline (streaming response)   |
+| `/api/campaigns/[id]/download` | GET                | Returns signed URL for ZIP archive                  |
+| `/api/webhooks/fal`            | POST               | Async fal.ai job completion (if using webhook mode) |
+| `/api/webhooks/creatomate`     | POST               | Async Creatomate render completion                  |
 
 Server Actions handle mutations from Client Components directly (Next.js 15 pattern) — Route Handlers above exist for webhooks, file uploads, and the generation pipeline.
 
@@ -182,7 +186,7 @@ Storage policies mirror DB RLS: a user can only read paths under `{brand_id}` th
 
 ---
 
-## Auth Flow (Clerk + Supabase)
+## Auth Flow (Clerk + Supabase) — target state
 
 1. User clicks invite link → Clerk sign-up form (email + password or OAuth)
 2. On successful sign-up, Clerk webhook (`user.created`) → insert row in `users` table
@@ -191,6 +195,48 @@ Storage policies mirror DB RLS: a user can only read paths under `{brand_id}` th
 5. Supabase RLS evaluates `auth.jwt()->>'sub'` against row `user_id` — native integration via Clerk's Supabase JWT template
 
 No session tokens ever touch the browser's localStorage — Clerk handles httpOnly cookies.
+
+---
+
+## Auth Deferral Strategy
+
+Auth is the second feature in Build phase, not the first. Campaign Creator ships against a **stubbed dev identity** so the real product surface gets built first. The stub is deliberately shaped so the eventual Clerk swap is a one-line change, not a rewrite.
+
+### Stub design
+
+- A single constant `const DEV_USER_ID = 'dev-user-1'` lives in `src/lib/auth.ts`
+- Every server-side Supabase call reads the user id from that constant via a `getCurrentUserId()` helper
+- When Clerk is added, the helper's body is replaced with `return auth().userId` — call sites do not change
+
+### RLS stays ON in dev
+
+Row Level Security is enabled from the first migration, same as the target state. Policies read `auth.uid()` from Supabase, which the stub sets explicitly via `supabase.auth.signInWithPassword` or a service-role impersonation. The dev user is a real row in `auth.users` — not a bypass.
+
+### Why not just disable RLS until auth lands
+
+Two reasons:
+
+1. **The hard rule stands** — RLS from day one prevents an entire class of data-leak bugs and forces the data model to be correct
+2. **Migration cost** — turning RLS on after Campaign Creator is built means debugging every existing query against policies we never exercised. Doing it up front means every query is RLS-correct from the first commit
+
+### Things that are NOT built until Clerk lands
+
+- `middleware.ts` — no auth gate yet; all routes are open in dev
+- `/api/webhooks/clerk` — no `user.created` handler
+- Sign-in / sign-up UI — Campaign Creator wizard is reachable directly from `/`
+- Real multi-user testing — can't exercise tenant isolation with one hardcoded identity
+
+These gaps are tracked as "auth swap" items in `docs/project-status.md` and become the second Build-phase feature.
+
+### The swap
+
+When Clerk is wired in:
+
+1. Install `@clerk/nextjs`
+2. Add `ClerkProvider` to `src/app/layout.tsx`
+3. Add `middleware.ts` with `authMiddleware`
+4. Replace `getCurrentUserId()` body — everything downstream already speaks the right shape
+5. Set up the Clerk → Supabase JWT template per the target-state flow above
 
 ---
 
@@ -207,6 +253,7 @@ No session tokens ever touch the browser's localStorage — Clerk handles httpOn
 ## Observability
 
 MVP-minimum set:
+
 - **Vercel logs** for request traces
 - **Supabase logs** for DB queries and RLS denials
 - **Sentry** (free tier) for frontend + backend error tracking — add in Setup phase
@@ -249,15 +296,15 @@ SENTRY_DSN=
 
 ## Cost Model (MVP — zero to 50 users)
 
-| Service | Plan | Est. monthly |
-|---------|------|--------------|
-| Vercel | Pro | $20 |
-| Supabase | Pro | $25 |
-| Clerk | Free (under 10k MAU) | $0 |
-| Creatomate | Starter | $54 |
-| Anthropic | Pay-per-use | ~$10–30 |
-| fal.ai | Pay-per-use | ~$15–40 |
-| **Total** | | **~$125–170** |
+| Service    | Plan                 | Est. monthly  |
+| ---------- | -------------------- | ------------- |
+| Vercel     | Pro                  | $20           |
+| Supabase   | Pro                  | $25           |
+| Clerk      | Free (under 10k MAU) | $0            |
+| Creatomate | Starter              | $54           |
+| Anthropic  | Pay-per-use          | ~$10–30       |
+| fal.ai     | Pay-per-use          | ~$15–40       |
+| **Total**  |                      | **~$125–170** |
 
 Scales roughly linearly with active users until Supabase free tier exhaustion (~500 MB DB or ~50 GB storage) or Creatomate credit cap.
 
