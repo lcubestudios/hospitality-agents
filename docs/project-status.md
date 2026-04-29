@@ -82,12 +82,30 @@ Deployment and production readiness items (Vercel prod env vars, Sentry, uptime 
 
 ---
 
+## ⚠️ TOP PRIORITY — Fix vision analysis before anything else
+
+Image generation produces incorrect results because vision analysis is broken. Must fix before moving to video or any other step.
+
+**What's broken:**
+
+- `gemini-3-flash` returns 404 — invalid model ID. Vision silently fails, generation falls back to a generic prompt with no product context.
+- Even with a valid model, Gemini misidentifies products (pizza → writer's study).
+
+**Recommended fix:**
+
+1. Swap `gemini-3-flash` → `gemini-2.0-flash` in the generate route (quick, one line)
+2. Test if Gemini 2.0 Flash vision accurately describes the uploaded product
+3. If still inaccurate → implement hybrid: Claude Vision (paid, ~$0.003/image) for analysis + Gemini for generation
+
+**Do not start step 7 (video) until image generation reflects the actual uploaded product.**
+
+---
+
 ## Next session: pick up here
 
-1. **Merge feature branches to main** (when boss approves `feat/supabase-setup` and `feat/campaign-images`)
-2. **Improve image prompt** — pull brand name + description from Supabase into the Pollinations prompt
-3. **Or swap image API** — fal.ai ($5) recommended for production quality
-4. **Start Build step 5** — Claude captions + hashtags (once image step is satisfactory)
+1. **Fix vision analysis** (see TOP PRIORITY above)
+2. **Merge feature branch** `feat/campaign-images` → `main` once vision is working
+3. **Start step 7** — video generation (Creatomate)
 
 ---
 
