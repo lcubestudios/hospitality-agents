@@ -68,11 +68,11 @@ Order of features is **deliberate**. Auth is stubbed, not skipped — the data m
    - **Notes:** Pollinations.ai down (Error 522). Replicate requires credits. Google Gemini free tier (gemini-3.1-flash-image) quota-limited. Using gemini-2.5-flash-image with `response_modalities: ["IMAGE"]` as workaround (~10 req/min, 500/day).
 5. ⚠️ **Campaign Creator (copy + hashtags)** — Caption + hashtag generation wired via Claude Sonnet. brand*voice + post_topic fields added to brands/campaigns. | \_In progress 2026-04-29*
    - **Caption fix:** Claude wraps JSON in markdown fences. Strip before JSON.parse — fixed 2026-04-29.
-6. **Basic UI** — Scoped 2026-04-29:
-   - **Brand context panel** — load brand name + description from Supabase, display inline on page, editable with save button that updates Supabase. Brand voice field deferred (noted as future addition).
-   - **Multiple photo upload** — up to 3 photos, each with a delete/replace button. All photos uploaded for AI context; still generates one enhanced image output. Multiple outputs (one per photo) noted as future possibility once single-gen is reliable.
-   - **Isolated regenerate buttons** — separate "Regenerate Image" and "Regenerate Caption" buttons after initial generation. Reuse already-uploaded photos; no re-upload needed. Caption regenerate re-calls `/caption` endpoint only; image regenerate re-calls `/generate` only.
-   - **Step progress indicator** — show current pipeline step to user during generation (Uploading → Analyzing → Generating image → Writing caption) so long waits feel intentional.
+6. ✅ **Basic UI** — Completed 2026-04-29:
+   - **Brand context panel** — brand name + description load from Supabase, editable inline with save (PATCH `/api/brands/[id]`). Brand voice deferred (future addition).
+   - **Multi-photo upload** — up to 3 photos, hover to replace/remove. All uploaded to Supabase Storage. Single enhanced image output. Multiple outputs noted as future possibility.
+   - **Step progress indicator** — live pipeline steps shown during generation (Uploading → Generating image → Writing caption).
+   - **Isolated regenerate buttons** — separate Regenerate on image and caption cards. Uploaded URLs stored in own state; cache-busted with `?t=Date.now()` so new image renders. Fixed silent early return bug (no feedback when campaignId/uploadedUrls missing).
 7. **Campaign Creator (video)** — wire Creatomate, assemble enhanced image + caption overlay into a short clip.
 8. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
 9. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, replace `getCurrentUserId()` body. Wire Clerk→Supabase JWT template.
