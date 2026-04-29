@@ -62,15 +62,21 @@ Order of features is **deliberate**. Auth is stubbed, not skipped — the data m
 1. ✅ **Supabase project + first migration** — create project, wire client, run initial schema (`users`, `brands`, `campaigns`, `assets`, `generation_jobs`) with RLS policies. Seed the dev user. | _Completed 2026-04-27_
 2. ✅ **Auth stub** — `src/lib/auth.ts` exports `DEV_USER_ID` and `getCurrentUserId()`. Every Supabase call routes through the helper. | _Completed 2026-04-27_
 3. ✅ **Brand profile CRUD** — simple form + Supabase write; validates the stub → RLS path end-to-end. Tested locally, form saves brands with `user_id` properly set. | _Completed 2026-04-27_
-4. ⚠️ **Campaign Creator wizard (images)** — Working. Upload flow complete (photo → Supabase Storage). Image generation wired to Google Gemini 2.5 Flash (free tier). Generated image saves to Supabase and displays with download button. Vision analysis integrated but needs refinement. | _In progress 2026-04-29_
-   - **Vision Issue:** Gemini 2.5 Flash misidentifies product types. Uploaded pizza → generated writer's study. Works end-to-end but vision context is inaccurate.
-   - **Next iteration:** Consider replacing Gemini Vision with Claude Vision (paid) for accurate product analysis, then pass details to Gemini for generation (hybrid approach).
+4. ⚠️ **Campaign Creator wizard (images)** — Working. Upload flow complete (photo → Supabase Storage). Image generation wired to Google Gemini 2.5 Flash (free tier). Generated image saves to Supabase and displays with download button. Vision analysis silently fails (see issues). | _In progress 2026-04-29_
+   - **Vision Issue 1:** `gemini-3-flash` model returns 404 — invalid model ID for v1beta. Vision silently fails and falls back to generic prompt. Fix: swap to `gemini-2.0-flash` or `gemini-1.5-flash`.
+   - **Vision Issue 2:** Even when vision works, Gemini misidentifies products (pizza → writer's study). Next iteration: Claude Vision for analysis + Gemini for generation (hybrid).
    - **Notes:** Pollinations.ai down (Error 522). Replicate requires credits. Google Gemini free tier (gemini-3.1-flash-image) quota-limited. Using gemini-2.5-flash-image with `response_modalities: ["IMAGE"]` as workaround (~10 req/min, 500/day).
-5. **Campaign Creator (copy + hashtags)** — add Claude Sonnet for caption + hashtag generation, prompt-cache the brand guide.
-6. **Campaign Creator (video)** — wire Creatomate, assemble enhanced image + caption overlay into a short clip.
-7. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
-8. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, replace `getCurrentUserId()` body. Wire Clerk→Supabase JWT template.
-9. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
+5. ⚠️ **Campaign Creator (copy + hashtags)** — Caption + hashtag generation wired via Claude Sonnet. brand*voice + post_topic fields added to brands/campaigns. | \_In progress 2026-04-29*
+   - **Caption fix:** Claude wraps JSON in markdown fences. Strip before JSON.parse — fixed 2026-04-29.
+6. **Basic UI** — Scoped 2026-04-29:
+   - **Brand context panel** — load brand name + description from Supabase, display inline on page, editable with save button that updates Supabase. Brand voice field deferred (noted as future addition).
+   - **Multiple photo upload** — up to 3 photos, each with a delete/replace button. All photos uploaded for AI context; still generates one enhanced image output. Multiple outputs (one per photo) noted as future possibility once single-gen is reliable.
+   - **Isolated regenerate buttons** — separate "Regenerate Image" and "Regenerate Caption" buttons after initial generation. Reuse already-uploaded photos; no re-upload needed. Caption regenerate re-calls `/caption` endpoint only; image regenerate re-calls `/generate` only.
+   - **Step progress indicator** — show current pipeline step to user during generation (Uploading → Analyzing → Generating image → Writing caption) so long waits feel intentional.
+7. **Campaign Creator (video)** — wire Creatomate, assemble enhanced image + caption overlay into a short clip.
+8. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
+9. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, replace `getCurrentUserId()` body. Wire Clerk→Supabase JWT template.
+10. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
 
 Deployment and production readiness items (Vercel prod env vars, Sentry, uptime monitoring) happen after step 5 once there's a real pipeline to observe.
 

@@ -9,10 +9,11 @@ import { Card } from '@/components/ui/card'
 interface BrandFormData {
   name: string
   description: string
+  brand_voice: string
 }
 
 export function BrandProfileForm() {
-  const [data, setData] = useState<BrandFormData>({ name: '', description: '' })
+  const [data, setData] = useState<BrandFormData>({ name: '', description: '', brand_voice: '' })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -36,7 +37,7 @@ export function BrandProfileForm() {
       }
 
       setSuccess(true)
-      setData({ name: '', description: '' })
+      setData({ name: '', description: '', brand_voice: '' })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -65,6 +66,17 @@ export function BrandProfileForm() {
             placeholder="What makes your brand unique?"
             value={data.description}
             onChange={(e) => setData({ ...data, description: e.target.value })}
+          />
+        </div>
+        <div>
+          <Label htmlFor="brand_voice">Brand Voice</Label>
+          <textarea
+            id="brand_voice"
+            placeholder="How does your brand sound? e.g. Warm, local, unpretentious. We talk like a neighbourhood spot, not a chain."
+            value={data.brand_voice}
+            onChange={(e) => setData({ ...data, brand_voice: e.target.value })}
+            rows={3}
+            className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring mt-1 w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
           />
         </div>
         <Button type="submit" disabled={loading} className="w-full">

@@ -5,13 +5,21 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 
-type Stage = 'idle' | 'uploading' | 'generating' | 'done' | 'error'
+type Stage = 'idle' | 'uploading' | 'generating' | 'captioning' | 'done' | 'error'
+
+interface CaptionResult {
+  caption: string
+  hashtags: string[]
+}
 
 export function CampaignCreator({ brandId }: { brandId: string }) {
   const [stage, setStage] = useState<Stage>('idle')
+  const [postTopic, setPostTopic] = useState('')
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [resultUrl, setResultUrl] = useState<string | null>(null)
+  const [captionResult, setCaptionResult] = useState<CaptionResult | null>(null)
+  const [copied, setCopied] = useState(false)
   const [error, setError] = useState('')
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -20,6 +28,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     setFile(picked)
     setPreview(URL.createObjectURL(picked))
     setResultUrl(null)
+    setCaptionResult(null)
     setError('')
     setStage('idle')
   }
@@ -27,6 +36,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   async function handleGenerate() {
     if (!file) return
     setError('')
+    setCaptionResult(null)
 
     try {
       // 1. Create campaign record
@@ -34,7 +44,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       const campaignRes = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ brand_id: brandId }),
+        body: JSON.stringify({ brand_id: brandId, post_topic: postTopic }),
       })
       if (!campaignRes.ok) throw new Error('Failed to create campaign')
       const campaign = await campaignRes.json()
@@ -56,8 +66,17 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       })
       if (!generateRes.ok) throw new Error('Generation failed')
       const { asset_url } = await generateRes.json()
-
       setResultUrl(asset_url)
+
+      // 4. Generate caption
+      setStage('captioning')
+      const captionRes = await fetch(`/api/campaigns/${campaign.id}/caption`, {
+        method: 'POST',
+      })
+      if (!captionRes.ok) throw new Error('Caption generation failed')
+      const captionData = await captionRes.json()
+      setCaptionResult(captionData)
+
       setStage('done')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -65,13 +84,24 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     }
   }
 
+  async function handleCopy() {
+    if (!captionResult) return
+    const hashtags = captionResult.hashtags.map((h) => `#${h.replace(/^#/, '')}`).join(' ')
+    await navigator.clipboard.writeText(`${captionResult.caption}\n\n${hashtags}`)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
   const statusLabel: Record<Stage, string> = {
-    idle: 'Generate Enhanced Image',
+    idle: 'Generate Image + Caption',
     uploading: 'Uploading photo...',
-    generating: 'Enhancing with AI... (this takes ~30 seconds)',
+    generating: 'Generating image... (~30s)',
+    captioning: 'Writing caption...',
     done: 'Generate Another',
     error: 'Try Again',
   }
+
+  const isLoading = stage === 'uploading' || stage === 'generating' || stage === 'captioning'
 
   return (
     <div className="max-w-2xl space-y-6">
@@ -79,6 +109,18 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         <h2 className="mb-4 text-xl font-bold">Campaign Creator</h2>
 
         <div className="space-y-4">
+          <div>
+            <Label htmlFor="post_topic">What is this post about?</Label>
+            <textarea
+              id="post_topic"
+              placeholder="e.g. Launching our new truffle pizza this Friday night"
+              value={postTopic}
+              onChange={(e) => setPostTopic(e.target.value)}
+              rows={2}
+              className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring mt-1 w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
+            />
+          </div>
+
           <div>
             <Label htmlFor="photo">Upload product photo</Label>
             <input
@@ -101,11 +143,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             </div>
           )}
 
-          <Button
-            onClick={handleGenerate}
-            disabled={!file || stage === 'uploading' || stage === 'generating'}
-            className="w-full"
-          >
+          <Button onClick={handleGenerate} disabled={!file || isLoading} className="w-full">
             {statusLabel[stage]}
           </Button>
 
@@ -127,8 +165,31 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             target="_blank"
             rel="noopener noreferrer"
           >
-            <Button className="w-full">Download Enhanced Image</Button>
+            <Button variant="outline" className="w-full">
+              Download Enhanced Image
+            </Button>
           </a>
+        </Card>
+      )}
+
+      {captionResult && (
+        <Card className="p-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Instagram Caption</h3>
+            <Button variant="outline" size="sm" onClick={handleCopy}>
+              {copied ? 'Copied!' : 'Copy All'}
+            </Button>
+          </div>
+          <p className="mb-4 text-sm leading-relaxed whitespace-pre-wrap text-gray-800">
+            {captionResult.caption}
+          </p>
+          <div className="flex flex-wrap gap-1">
+            {captionResult.hashtags.map((tag) => (
+              <span key={tag} className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600">
+                #{tag.replace(/^#/, '')}
+              </span>
+            ))}
+          </div>
         </Card>
       )}
     </div>

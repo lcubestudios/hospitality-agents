@@ -4,7 +4,7 @@ import { getCurrentUserId } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
-    const { brand_id } = await req.json()
+    const { brand_id, post_topic } = await req.json()
 
     if (!brand_id) {
       return NextResponse.json({ message: 'brand_id is required' }, { status: 400 })
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('campaigns')
-      .insert({ brand_id, status: 'draft' })
+      .insert({ brand_id, post_topic: post_topic || null, status: 'draft' })
       .select()
       .single()
 

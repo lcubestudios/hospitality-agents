@@ -4,7 +4,7 @@ import { getCurrentUserId } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
-    const { name, description } = await req.json()
+    const { name, description, brand_voice } = await req.json()
 
     if (!name || name.trim() === '') {
       return NextResponse.json({ message: 'Brand name is required' }, { status: 400 })
@@ -14,7 +14,12 @@ export async function POST(req: NextRequest) {
 
     const { data, error } = await supabase
       .from('brands')
-      .insert({ name, description: description || null, user_id: userId })
+      .insert({
+        name,
+        description: description || null,
+        brand_voice: brand_voice || null,
+        user_id: userId,
+      })
       .select()
       .single()
 
