@@ -1,6 +1,6 @@
 # Project Status — Hospitality Agents
 
-## Current Phase: Setup (PSB Framework) — closing out
+## Current Phase: Build (PSB Framework) — Step 3 complete
 
 ### PSB Progress
 
@@ -55,14 +55,17 @@ Git: `main` branch, 4 commits, pushed to `github.com/LukasAVB/hospitality-agents
 
 ---
 
-## Build phase plan (next session onwards)
+## Build phase plan (ordered feature sequence)
 
 Order of features is **deliberate**. Auth is stubbed, not skipped — the data model exercises RLS from the first migration.
 
-1. **Supabase project + first migration** — create project, wire client, run initial schema (`users`, `brands`, `campaigns`, `assets`, `generation_jobs`) with RLS policies. Seed the dev user.
-2. **Auth stub** — `src/lib/auth.ts` exports `DEV_USER_ID` and `getCurrentUserId()`. Every Supabase call routes through the helper.
-3. **Brand profile CRUD** — simple form + Supabase write; validates the stub → RLS path end-to-end.
-4. **Campaign Creator wizard (images)** — upload product photo → fal.ai Flux image-to-image → preview + download. Single post, no video yet.
+1. ✅ **Supabase project + first migration** — create project, wire client, run initial schema (`users`, `brands`, `campaigns`, `assets`, `generation_jobs`) with RLS policies. Seed the dev user. | _Completed 2026-04-27_
+2. ✅ **Auth stub** — `src/lib/auth.ts` exports `DEV_USER_ID` and `getCurrentUserId()`. Every Supabase call routes through the helper. | _Completed 2026-04-27_
+3. ✅ **Brand profile CRUD** — simple form + Supabase write; validates the stub → RLS path end-to-end. Tested locally, form saves brands with `user_id` properly set. | _Completed 2026-04-27_
+4. ⚠️ **Campaign Creator wizard (images)** — Working. Upload flow complete (photo → Supabase Storage). Image generation wired to Google Gemini 2.5 Flash (free tier). Generated image saves to Supabase and displays with download button. Vision analysis integrated but needs refinement. | _In progress 2026-04-29_
+   - **Vision Issue:** Gemini 2.5 Flash misidentifies product types. Uploaded pizza → generated writer's study. Works end-to-end but vision context is inaccurate.
+   - **Next iteration:** Consider replacing Gemini Vision with Claude Vision (paid) for accurate product analysis, then pass details to Gemini for generation (hybrid approach).
+   - **Notes:** Pollinations.ai down (Error 522). Replicate requires credits. Google Gemini free tier (gemini-3.1-flash-image) quota-limited. Using gemini-2.5-flash-image with `response_modalities: ["IMAGE"]` as workaround (~10 req/min, 500/day).
 5. **Campaign Creator (copy + hashtags)** — add Claude Sonnet for caption + hashtag generation, prompt-cache the brand guide.
 6. **Campaign Creator (video)** — wire Creatomate, assemble enhanced image + caption overlay into a short clip.
 7. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
@@ -75,8 +78,10 @@ Deployment and production readiness items (Vercel prod env vars, Sentry, uptime 
 
 ## Next session: pick up here
 
-1. **Configure MCP servers + slash commands** — Supabase MCP is the main one; any others as needed
-2. **Start Build step 1** — Supabase project creation (user action, then scaffold migration locally)
+1. **Merge feature branches to main** (when boss approves `feat/supabase-setup` and `feat/campaign-images`)
+2. **Improve image prompt** — pull brand name + description from Supabase into the Pollinations prompt
+3. **Or swap image API** — fal.ai ($5) recommended for production quality
+4. **Start Build step 5** — Claude captions + hashtags (once image step is satisfactory)
 
 ---
 
