@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Anthropic } from '@anthropic-ai/sdk'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY
@@ -16,25 +17,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const supabase = await getAuthedSupabaseAdmin()
     await supabase.from('campaigns').update({ status: 'generating' }).eq('id', campaignId)
 
-    // Fetch campaign → brand
-    const { data: campaign } = await supabase
-      .from('campaigns')
-      .select('brand_id')
-      .eq('id', campaignId)
-      .single()
-
-    const { data: brand } = campaign
-      ? await supabase
-          .from('brands')
-          .select('name, description')
-          .eq('id', campaign.brand_id)
-          .single()
-      : { data: null }
-
-    const brandName = brand?.name ?? 'a food and beverage brand'
-    const brandDesc = brand?.description ?? 'a food and beverage product'
-
-    // STEP 1: Vision Analysis with Gemini 3 Flash
+    // STEP 1: Vision Analysis with Claude
     let productDetails = ''
     if (uploadedImageUrl) {
       try {
@@ -43,37 +26,32 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const imgBuffer = await imgRes.arrayBuffer()
           const base64Image = Buffer.from(imgBuffer).toString('base64')
 
-          const visionRes = await fetch(
-            `${BASE_URL}/models/gemini-3-flash:generateContent?key=${GOOGLE_API_KEY}`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                contents: [
+          const client = new Anthropic()
+          const visionRes = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            messages: [
+              {
+                role: 'user',
+                content: [
                   {
-                    parts: [
-                      {
-                        text: 'Describe this product photo in detail. Focus on: what the product is, colors, textures, visible details, plating, garnishes, condition (fresh/cooked/prepared state). Be specific and vivid.',
-                      },
-                      {
-                        inlineData: {
-                          mimeType: 'image/jpeg',
-                          data: base64Image,
-                        },
-                      },
-                    ],
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: 'image/jpeg',
+                      data: base64Image,
+                    },
+                  },
+                  {
+                    type: 'text',
+                    text: 'Describe this product photo in detail. Focus on: what the product is, colors, textures, visible details, plating, garnishes, condition (fresh/cooked/prepared state). Be specific and vivid.',
                   },
                 ],
-              }),
-            },
-          )
+              },
+            ],
+          })
 
-          if (visionRes.ok) {
-            const visionData = await visionRes.json()
-            productDetails = visionData.candidates?.[0]?.content?.parts?.[0]?.text || ''
-          } else {
-            console.warn('Vision analysis failed:', await visionRes.text())
-          }
+          productDetails = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
         }
       } catch (err) {
         console.warn('Vision analysis error, proceeding with generic prompt:', err)
@@ -109,6 +87,28 @@ Avoid: ${negativePrompt}`
           generationConfig: {
             response_modalities: ['IMAGE'],
           },
+          safetySettings: [
+            {
+              category: 'HARM_CATEGORY_HATE_SPEECH',
+              threshold: 'BLOCK_ONLY_HIGH',
+            },
+            {
+              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
+              threshold: 'BLOCK_ONLY_HIGH',
+            },
+            {
+              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
+              threshold: 'BLOCK_ONLY_HIGH',
+            },
+            {
+              category: 'HARM_CATEGORY_HARASSMENT',
+              threshold: 'BLOCK_ONLY_HIGH',
+            },
+            {
+              category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
+              threshold: 'BLOCK_ONLY_HIGH',
+            },
+          ],
         }),
       },
     )
