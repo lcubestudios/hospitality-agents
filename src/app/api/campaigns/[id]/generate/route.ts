@@ -126,7 +126,7 @@ Avoid: ${negativePrompt}`
       return NextResponse.json({ message: 'Image generation failed' }, { status: 500 })
     }
 
-    const imagePart = genData.candidates[0].content.parts.find(
+    const imagePart = genData.candidates[0].content?.parts?.find(
       (part: { inlineData?: { mimeType?: string; data?: string } }) =>
         part.inlineData?.mimeType?.startsWith('image/'),
     )
