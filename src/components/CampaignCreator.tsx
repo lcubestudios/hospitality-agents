@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { ChevronDown, ChevronUp, X } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, Circle, Loader2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
@@ -441,20 +441,25 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
 
           {/* Progress indicator */}
           {isLoading && progressSteps.length > 0 && (
-            <div className="space-y-2 rounded-lg bg-gray-50 p-4">
-              {progressSteps.map(({ key, label }) => {
+            <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
+              {progressSteps.map(({ key, label }, i) => {
                 const stepIndex = progressSteps.findIndex((s) => s.key === stage)
                 const thisIndex = progressSteps.findIndex((s) => s.key === key)
                 const isDone = thisIndex < stepIndex
                 const isActive = key === stage
                 return (
-                  <div key={key} className="flex items-center gap-2 text-sm">
-                    <span
-                      className={
-                        isDone ? 'text-green-500' : isActive ? 'text-blue-500' : 'text-gray-300'
-                      }
-                    >
-                      {isDone ? '✓' : isActive ? '●' : '○'}
+                  <div
+                    key={key}
+                    className={[
+                      'flex items-center gap-3 px-4 py-3 text-sm transition-colors duration-300',
+                      i > 0 ? 'border-t border-gray-200' : '',
+                      isActive ? 'animate-pulse bg-blue-50' : '',
+                    ].join(' ')}
+                  >
+                    <span className="flex-shrink-0">
+                      {isDone && <CheckCircle size={15} className="text-green-500" />}
+                      {isActive && <Loader2 size={15} className="animate-spin text-blue-500" />}
+                      {!isDone && !isActive && <Circle size={15} className="text-gray-300" />}
                     </span>
                     <span
                       className={
@@ -462,7 +467,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                           ? 'text-gray-400 line-through'
                           : isActive
                             ? 'font-medium text-gray-800'
-                            : 'text-gray-300'
+                            : 'text-gray-400'
                       }
                     >
                       {label}
