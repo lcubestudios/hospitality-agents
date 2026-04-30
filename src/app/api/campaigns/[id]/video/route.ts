@@ -15,8 +15,24 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const supabase = await getAuthedSupabaseAdmin()
 
+    // Fetch campaign context
+    const { data: campaign } = await supabase
+      .from('campaigns')
+      .select('brand_id, post_topic')
+      .eq('id', campaignId)
+      .single()
+
+    const { data: brand } = campaign
+      ? await supabase.from('brands').select('brand_voice').eq('id', campaign.brand_id).single()
+      : { data: null }
+
+    const brandVoice = brand?.brand_voice ?? ''
+    const postTopic = campaign?.post_topic ?? ''
+
     const prompt = [
-      caption ? `Caption context: ${caption}.` : '',
+      caption ? `Caption: ${caption}.` : '',
+      brandVoice ? `Brand voice: ${brandVoice}.` : '',
+      postTopic ? `Post topic: ${postTopic}.` : '',
       'Cinematic food and beverage product video. Soft natural lighting, close-up details, appetizing presentation, professional restaurant photography style.',
     ]
       .filter(Boolean)

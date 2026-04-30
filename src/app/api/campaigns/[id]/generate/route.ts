@@ -17,6 +17,26 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const supabase = await getAuthedSupabaseAdmin()
     await supabase.from('campaigns').update({ status: 'generating' }).eq('id', campaignId)
 
+    // Fetch campaign context
+    const { data: campaign } = await supabase
+      .from('campaigns')
+      .select('brand_id, post_topic')
+      .eq('id', campaignId)
+      .single()
+
+    const { data: brand } = campaign
+      ? await supabase
+          .from('brands')
+          .select('name, description, brand_voice')
+          .eq('id', campaign.brand_id)
+          .single()
+      : { data: null }
+
+    const brandName = brand?.name ?? ''
+    const brandDesc = brand?.description ?? ''
+    const brandVoice = brand?.brand_voice ?? ''
+    const postTopic = campaign?.post_topic ?? ''
+
     // STEP 1: Vision Analysis with Claude
     let productDetails = ''
     if (uploadedImageUrl) {
@@ -61,10 +81,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const negativePrompt = `studio lighting, product photography setup, isolated subject, plain white background, cutout look, perfectly centered composition, symmetrical framing, overly clean or sterile environment, staged presentation, waxy texture, plastic appearance, overly smooth surfaces, glossy or synthetic finish, uniform textures, unrealistic material rendering, perfect lighting, flat lighting, evenly lit scene, artificial gradients, digital highlights, unrealistic shadows, unrealistic light falloff, exaggerated depth of field, artificial blur, unrealistic bokeh, artificial focus effects, AI-generated appearance, CGI look, rendered image, digital enhancement, computer-generated, overly sharp edges, stock photo aesthetic, artificial perfection, hyper-polished`
 
     // STEP 2: Image Generation with Gemini 2.5 Flash (free tier multimodal image output)
+    const contextLines = [
+      `Brand: ${brandName}`,
+      `Description: ${brandDesc}`,
+      `Brand voice: ${brandVoice}`,
+      `Post topic: ${postTopic}`,
+    ]
+      .filter((line) => !line.endsWith(': '))
+      .join('\n')
+
     const fullPrompt = `Generate a high-quality product photo.
 
 Product details: ${productDetails}
 
+${contextLines ? `Context:\n${contextLines}\n` : ''}
 Style: Natural, 35mm lens, wooden table or stone countertop background, soft directional lighting, lived-in setting, candid composition.
 
 Avoid: ${negativePrompt}`

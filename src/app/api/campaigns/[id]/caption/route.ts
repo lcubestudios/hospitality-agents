@@ -4,9 +4,10 @@ import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
-export async function POST(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await params
+    const { image_url: photoUrl } = await req.json()
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ message: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
@@ -33,6 +34,46 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
     const brandVoice = brand?.brand_voice ?? ''
     const postTopic = campaign?.post_topic ?? 'a new product photo'
 
+    // Analyze uploaded photo for product context
+    let productDetails = ''
+    if (photoUrl) {
+      try {
+        const imgRes = await fetch(photoUrl)
+        if (imgRes.ok) {
+          const imgBuffer = await imgRes.arrayBuffer()
+          const base64Image = Buffer.from(imgBuffer).toString('base64')
+
+          const visionRes = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1024,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'image',
+                    source: {
+                      type: 'base64',
+                      media_type: 'image/jpeg',
+                      data: base64Image,
+                    },
+                  },
+                  {
+                    type: 'text',
+                    text: 'Describe this product photo in detail. Focus on: what the product is, colors, textures, visible details, plating, garnishes, condition (fresh/cooked/prepared state). Be specific and vivid.',
+                  },
+                ],
+              },
+            ],
+          })
+
+          productDetails = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
+        }
+      } catch (err) {
+        console.warn('Photo analysis for caption failed, proceeding without:', err)
+      }
+    }
+
     const systemPrompt = [
       'You write Instagram captions for food and beverage brands. You match the brand voice exactly and write captions that feel authentic, not corporate.',
       '',
@@ -49,6 +90,13 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       '- No markdown, no explanation, just the JSON',
     ].join('\n')
 
+    const userMessage = [
+      `Write an Instagram caption for this post: ${postTopic}`,
+      productDetails ? `\nProduct details: ${productDetails}` : '',
+    ]
+      .filter(Boolean)
+      .join('')
+
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: 1024,
@@ -56,7 +104,7 @@ export async function POST(_req: NextRequest, { params }: { params: Promise<{ id
       messages: [
         {
           role: 'user',
-          content: `Write an Instagram caption for this post: ${postTopic}`,
+          content: userMessage,
         },
       ],
     })
