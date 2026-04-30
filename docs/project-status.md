@@ -73,7 +73,11 @@ Order of features is **deliberate**. Auth is stubbed, not skipped — the data m
    - **Multi-photo upload** — up to 3 photos, hover to replace/remove. All uploaded to Supabase Storage. Single enhanced image output. Multiple outputs noted as future possibility.
    - **Step progress indicator** — live pipeline steps shown during generation (Uploading → Generating image → Writing caption).
    - **Isolated regenerate buttons** — separate Regenerate on image and caption cards. Uploaded URLs stored in own state; cache-busted with `?t=Date.now()` so new image renders. Fixed silent early return bug (no feedback when campaignId/uploadedUrls missing).
-7. **Campaign Creator (video)** — wire Creatomate, assemble enhanced image + caption overlay into a short clip.
+7. ✅ **Campaign Creator (video)** — Veo 3 Fast (Google AI Studio) wired via `/api/campaigns/[id]/video`. Prompt built from caption, async polling until done, video uploaded to Supabase Storage, saved to `assets` table. UI: "Generate Video" button appears after caption, video card with player + download. | _Completed 2026-04-30_
+   - **Approach:** Skipped Creatomate — Veo 3 Fast available on existing Google AI Studio key, no new account needed.
+   - **API pattern:** POST `:predictLongRunning` → poll operation every 5s (max 3 min) → download from temp URI → upload to Supabase.
+   - **Duration:** 8 seconds (valid range: 4–8s; 9:16 aspect ratio).
+   - **⚠️ UI TODO:** Current "Generate Video" button appears below caption as a standalone step. Needs UX review — how should video generation integrate into the main workflow? See brainstorm note below.
 8. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
 9. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, replace `getCurrentUserId()` body. Wire Clerk→Supabase JWT template.
 10. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
@@ -96,9 +100,24 @@ Ready to proceed to step 7 (video generation).
 
 ## Next session: pick up here
 
-1. **Merge feature branch** `feat/campaign-images` → `main` (vision + captions now working)
-2. **Start step 7** — video generation (Creatomate)
-3. **Step 8** — multi-post + ZIP bundling
+1. **Brainstorm + decide video gen UX** (see below) — then implement
+2. **QA** image + video across real F&B use-cases
+3. **Merge** `feat/campaign-video` → `feat/campaign-images` → `main`
+4. **Step 8** — multi-post + ZIP bundling
+
+---
+
+## ⚠️ Brainstorm — Video Gen UI Integration
+
+Current state: "Generate Video" is a standalone button that appears after caption. It works but feels disconnected from the main workflow.
+
+Questions to answer before implementing the final UX:
+
+- Should video generate automatically alongside image + caption (one "Generate All" flow)?
+- Or stay opt-in (user clicks separately after reviewing image + caption)?
+- Where does the video card live — below caption, in a tab, or in a separate output panel?
+- Should the step progress indicator include a "Generating video" step?
+- What happens on regenerate — does it regenerate image + caption + video together or independently?
 
 ---
 

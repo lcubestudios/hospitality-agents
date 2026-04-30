@@ -38,6 +38,8 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   const [error, setError] = useState('')
   const [regenImageLoading, setRegenImageLoading] = useState(false)
   const [regenCaptionLoading, setRegenCaptionLoading] = useState(false)
+  const [videoUrl, setVideoUrl] = useState<string | null>(null)
+  const [videoLoading, setVideoLoading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   function handleAddPhotos(e: React.ChangeEvent<HTMLInputElement>) {
@@ -168,6 +170,27 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setRegenCaptionLoading(false)
+    }
+  }
+
+  async function handleGenerateVideo() {
+    if (!campaignId || !captionResult) return
+    setVideoLoading(true)
+    setError('')
+
+    try {
+      const videoRes = await fetch(`/api/campaigns/${campaignId}/video`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caption: captionResult.caption }),
+      })
+      if (!videoRes.ok) throw new Error('Video generation failed')
+      const { asset_url } = await videoRes.json()
+      setVideoUrl(asset_url)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setVideoLoading(false)
     }
   }
 
@@ -374,6 +397,39 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
               </span>
             ))}
           </div>
+        </Card>
+      )}
+
+      {captionResult && !videoUrl && (
+        <Button onClick={handleGenerateVideo} disabled={videoLoading} className="w-full">
+          {videoLoading ? 'Generating video... (up to 3 min)' : 'Generate Video'}
+        </Button>
+      )}
+
+      {videoUrl && (
+        <Card className="p-6">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-lg font-semibold">Video</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleGenerateVideo}
+              disabled={videoLoading}
+            >
+              {videoLoading ? 'Regenerating...' : 'Regenerate'}
+            </Button>
+          </div>
+          <video src={videoUrl} controls className="mb-4 w-full rounded-lg border" />
+          <a
+            href={videoUrl}
+            download="campaign-video.mp4"
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" className="w-full">
+              Download
+            </Button>
+          </a>
         </Card>
       )}
     </div>
