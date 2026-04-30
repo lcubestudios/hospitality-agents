@@ -604,96 +604,92 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
               Generate with Different Input
             </Button>
           </div>
+        </Card>
+      )}
 
-          {/* Archives */}
-          {archives.length > 0 && (
-            <div className="mt-6 border-t pt-4">
-              <p className="mb-3 text-xs font-medium tracking-wide text-gray-400 uppercase">
-                Previous Outputs
-              </p>
-              <div className="space-y-2">
-                {archives.map((archive) => (
-                  <div key={archive.id} className="rounded-lg border border-gray-200 bg-gray-50">
-                    {/* Archive header row */}
-                    <div className="flex items-center gap-3 p-3">
-                      {archive.imageUrl && (
-                        <img
-                          src={archive.imageUrl}
-                          alt="Archive"
-                          className="h-10 w-10 flex-shrink-0 rounded object-cover"
-                        />
-                      )}
-                      <div className="min-w-0 flex-1 text-xs text-gray-500">
-                        {archive.captionResult ? (
-                          <p className="truncate">{archive.captionResult.caption}</p>
-                        ) : (
-                          <p className="text-gray-400">
-                            {[archive.imageUrl && 'Image', archive.videoUrl && 'Video']
-                              .filter(Boolean)
-                              .join(' + ')}
-                          </p>
-                        )}
-                        {archive.videoUrl && (
-                          <span className="text-blue-400">
-                            {archive.captionResult ? ' · video' : ''}
-                          </span>
-                        )}
-                      </div>
-                      <button
-                        onClick={() =>
-                          setExpandedArchiveId(expandedArchiveId === archive.id ? null : archive.id)
-                        }
-                        className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-                      >
-                        {expandedArchiveId === archive.id ? (
-                          <ChevronUp size={14} />
-                        ) : (
-                          <ChevronDown size={14} />
-                        )}
-                      </button>
-                      <button
-                        onClick={() => deleteArchive(archive.id)}
-                        className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-
-                    {/* Archive expanded view */}
-                    {expandedArchiveId === archive.id && (
-                      <div className="flex flex-wrap gap-3 border-t border-gray-200 p-3">
-                        {archive.imageUrl && (
-                          <img
-                            src={archive.imageUrl}
-                            alt="Archived image"
-                            className="h-40 rounded border object-cover"
-                          />
-                        )}
-                        {archive.captionResult && (
-                          <div className="min-w-48 flex-1 text-xs text-gray-700">
-                            <p className="mb-2 leading-relaxed">{archive.captionResult.caption}</p>
-                            <div className="flex flex-wrap gap-1">
-                              {archive.captionResult.hashtags.map((tag) => (
-                                <span
-                                  key={tag}
-                                  className="rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-500"
-                                >
-                                  #{tag.replace(/^#/, '')}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        {archive.videoUrl && (
-                          <video src={archive.videoUrl} controls className="h-40 rounded border" />
-                        )}
-                      </div>
+      {/* Archives — own card, always visible when entries exist */}
+      {archives.length > 0 && (
+        <Card className="p-6">
+          <p className="mb-3 text-xs font-medium tracking-wide text-gray-400 uppercase">
+            Previous Outputs
+          </p>
+          <div className="space-y-2">
+            {archives.map((archive) => (
+              <div key={archive.id} className="rounded-lg border border-gray-200 bg-gray-50">
+                <div className="flex items-center gap-3 p-3">
+                  {archive.imageUrl && (
+                    <img
+                      src={archive.imageUrl}
+                      alt="Archive"
+                      className="h-10 w-10 flex-shrink-0 rounded object-cover"
+                    />
+                  )}
+                  <div className="min-w-0 flex-1 text-xs text-gray-500">
+                    {archive.captionResult ? (
+                      <p className="truncate">{archive.captionResult.caption}</p>
+                    ) : (
+                      <p className="text-gray-400">
+                        {[archive.imageUrl && 'Image', archive.videoUrl && 'Video']
+                          .filter(Boolean)
+                          .join(' + ')}
+                      </p>
+                    )}
+                    {archive.videoUrl && archive.captionResult && (
+                      <span className="text-blue-400"> · video</span>
                     )}
                   </div>
-                ))}
+                  <button
+                    onClick={() =>
+                      setExpandedArchiveId(expandedArchiveId === archive.id ? null : archive.id)
+                    }
+                    className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                  >
+                    {expandedArchiveId === archive.id ? (
+                      <ChevronUp size={14} />
+                    ) : (
+                      <ChevronDown size={14} />
+                    )}
+                  </button>
+                  <button
+                    onClick={() => deleteArchive(archive.id)}
+                    className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+
+                {expandedArchiveId === archive.id && (
+                  <div className="flex flex-wrap gap-3 border-t border-gray-200 p-3">
+                    {archive.imageUrl && (
+                      <img
+                        src={archive.imageUrl}
+                        alt="Archived image"
+                        className="h-40 rounded border object-cover"
+                      />
+                    )}
+                    {archive.captionResult && (
+                      <div className="min-w-48 flex-1 text-xs text-gray-700">
+                        <p className="mb-2 leading-relaxed">{archive.captionResult.caption}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {archive.captionResult.hashtags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-500"
+                            >
+                              #{tag.replace(/^#/, '')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {archive.videoUrl && (
+                      <video src={archive.videoUrl} controls className="h-40 rounded border" />
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            ))}
+          </div>
         </Card>
       )}
     </div>
