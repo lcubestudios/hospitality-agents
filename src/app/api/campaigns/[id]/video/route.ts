@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Anthropic } from '@anthropic-ai/sdk'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY
@@ -7,7 +8,7 @@ const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await params
-    const { caption } = await req.json()
+    const { caption, image_url: imageUrl } = await req.json()
 
     if (!GOOGLE_API_KEY) {
       return NextResponse.json({ message: 'GOOGLE_AI_STUDIO_KEY not configured' }, { status: 500 })
@@ -29,7 +30,42 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandVoice = brand?.brand_voice ?? ''
     const postTopic = campaign?.post_topic ?? ''
 
+    // Analyze the same image used for generation to ensure visual consistency
+    let productDetails = ''
+    if (imageUrl) {
+      try {
+        const imgRes = await fetch(imageUrl)
+        if (imgRes.ok) {
+          const base64Image = Buffer.from(await imgRes.arrayBuffer()).toString('base64')
+          const client = new Anthropic()
+          const visionRes = await client.messages.create({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 512,
+            messages: [
+              {
+                role: 'user',
+                content: [
+                  {
+                    type: 'image',
+                    source: { type: 'base64', media_type: 'image/jpeg', data: base64Image },
+                  },
+                  {
+                    type: 'text',
+                    text: 'Describe this food/beverage product in 2-3 sentences: what it is, key visual details, colors, presentation style.',
+                  },
+                ],
+              },
+            ],
+          })
+          productDetails = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
+        }
+      } catch (err) {
+        console.warn('Vision analysis for video consistency failed:', err)
+      }
+    }
+
     const prompt = [
+      productDetails ? `Product: ${productDetails}` : '',
       caption ? `Caption: ${caption}.` : '',
       brandVoice ? `Brand voice: ${brandVoice}.` : '',
       postTopic ? `Post topic: ${postTopic}.` : '',
