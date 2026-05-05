@@ -38,7 +38,38 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const postTopic = campaign?.post_topic ?? ''
 
     // STEP 1: Vision Analysis with Claude
-    let productDetails = ''
+    interface ImageContext {
+      primary_subject: string
+      subject_details: string
+      surface: {
+        type: string
+        color_palette: string
+      }
+      background: {
+        type: string
+        dominant_colors: string
+      }
+      lighting: {
+        type: string
+        direction: string
+        intensity: string
+      }
+      composition: {
+        angle: string
+        framing: string
+        focal_point: string
+      }
+    }
+
+    let imageContext: ImageContext = {
+      primary_subject: '',
+      subject_details: '',
+      surface: { type: '', color_palette: '' },
+      background: { type: '', dominant_colors: '' },
+      lighting: { type: '', direction: '', intensity: '' },
+      composition: { angle: '', framing: '', focal_point: '' },
+    }
+
     if (uploadedImageUrl) {
       try {
         const imgRes = await fetch(uploadedImageUrl)
@@ -64,21 +95,71 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   },
                   {
                     type: 'text',
-                    text: 'Describe this product photo in detail. Focus on: what the product is, colors, textures, visible details, plating, garnishes, condition (fresh/cooked/prepared state). Be specific and vivid.',
+                    text: `Analyze this product photo and return structured JSON describing the scene.
+
+Identify the primary subject (the main product/dish/item). All other elements should be described in relation to this subject.
+
+Return valid JSON with exactly this structure:
+{
+  "primary_subject": "The main focal item (e.g., dish, drink, product)",
+  "subject_details": "Key physical details: color, texture, preparation state, visible components",
+  "surface": {
+    "type": "What the product sits on (plate, board, counter, etc.)",
+    "color_palette": "Colors and tones of the surface"
+  },
+  "background": {
+    "type": "Background context (blurred, minimal, environmental)",
+    "dominant_colors": "Primary background colors"
+  },
+  "lighting": {
+    "type": "Lighting style (natural, soft, directional, overhead, etc.)",
+    "direction": "Where light comes from",
+    "intensity": "Brightness level (soft, moderate, bright)"
+  },
+  "composition": {
+    "angle": "Camera angle (straight-on, overhead, 45-degree, etc.)",
+    "framing": "How subject is framed (centered, off-center, tight, wide)",
+    "focal_point": "What draws the eye first"
+  }
+}
+
+Rules:
+- Be specific and concrete, not abstract
+- Do not infer, assume, or make up details not visible
+- Do not describe techniques or processes, only the visible result
+- Keep descriptions concise but informative
+- Return ONLY valid JSON`,
                   },
                 ],
               },
             ],
           })
 
-          productDetails = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
+          const raw = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
+          const cleanJson = raw
+            .replace(/^```json\s*/i, '')
+            .replace(/^```\s*/i, '')
+            .replace(/```\s*$/i, '')
+            .trim()
+          imageContext = JSON.parse(cleanJson)
         }
       } catch (err) {
-        console.warn('Vision analysis error, proceeding with generic prompt:', err)
+        console.warn('Vision analysis error, proceeding with fallback:', err)
       }
     }
 
-    const negativePrompt = `studio lighting, product photography setup, isolated subject, plain white background, cutout look, perfectly centered composition, symmetrical framing, overly clean or sterile environment, staged presentation, waxy texture, plastic appearance, overly smooth surfaces, glossy or synthetic finish, uniform textures, unrealistic material rendering, perfect lighting, flat lighting, evenly lit scene, artificial gradients, digital highlights, unrealistic shadows, unrealistic light falloff, exaggerated depth of field, artificial blur, unrealistic bokeh, artificial focus effects, AI-generated appearance, CGI look, rendered image, digital enhancement, computer-generated, overly sharp edges, stock photo aesthetic, artificial perfection, hyper-polished`
+    const productDetails = [
+      imageContext.primary_subject,
+      imageContext.subject_details,
+      `Surface: ${imageContext.surface?.type} with ${imageContext.surface?.color_palette}`,
+      `Background: ${imageContext.background?.type}`,
+      `Lighting: ${imageContext.lighting?.type} from ${imageContext.lighting?.direction}`,
+      `Composition: ${imageContext.composition?.angle} angle, ${imageContext.composition?.framing} framing`,
+    ]
+      .filter((line) => line && !line.endsWith(': '))
+      .join('\n')
+
+    const negativePrompt = `studio setup, product photography, isolated subject, cutout look, perfectly centered, symmetrical framing, staged presentation, plain white background, sterile background, overly clean, artificial environment, waxy texture, plastic appearance, glossy finish, synthetic material, overly smooth, uniform texture, unrealistic rendering, perfect lighting, flat lighting, evenly lit, artificial gradients, digital highlights, unrealistic shadows, unrealistic light falloff, exaggerated depth of field, artificial blur, unrealistic bokeh, artificial focus effects, AI-generated appearance, CGI look, rendered image, digital enhancement, computer-generated, overly sharp edges, stock photo aesthetic, artificial perfection, hyper-polished, obvious AI, filter applied, edited appearance, color graded`
 
     // STEP 2: Image Generation with Gemini 2.5 Flash (free tier multimodal image output)
     const contextLines = [
@@ -90,12 +171,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .filter((line) => !line.endsWith(': '))
       .join('\n')
 
-    const fullPrompt = `Generate a high-quality product photo.
+    const fullPrompt = `Elevate this product photo: enhance the visual presentation while preserving the authentic identity of the subject.
 
-Product details: ${productDetails}
+Product: ${productDetails}
 
-${contextLines ? `Context:\n${contextLines}\n` : ''}
-Style: Natural, 35mm lens, wooden table or stone countertop background, soft directional lighting, lived-in setting, candid composition.
+${contextLines ? `\nBrand context:\n${contextLines}\n` : ''}
+Direction: Create an elevated version that feels authentic, not artificial. Preserve the core visual identity—the colors, textures, and character of the product. Enhance lighting to be more flattering and dimensionally interesting. Refine the setting to feel more intentional and composed, but not sterile. Maintain a natural, food-forward aesthetic as if photographed by a skilled culinary photographer.
+
+Composition: Candid but composed. Show the product in a way that invites engagement—not isolated, but situated naturally.
+
+Lighting: Warm, directional, and dimensional. Soft enough to feel approachable, with enough definition to show texture and depth.
+
+Setting: Natural surfaces (wood, stone, ceramic). Environmental context that suggests a real moment, not a studio setup.
 
 Avoid: ${negativePrompt}`
 

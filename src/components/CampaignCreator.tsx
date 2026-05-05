@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
 
-const MAX_PHOTOS = 3
+const MAX_PHOTOS = 1
 const MAX_ARCHIVES = 2
 
 type Stage = 'idle' | 'generating' | 'captioning' | 'uploading' | 'videoing' | 'done' | 'error'

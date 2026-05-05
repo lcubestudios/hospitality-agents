@@ -79,9 +79,9 @@ Order of features is **deliberate**. Auth is stubbed, not skipped — the data m
    - **Duration:** 8 seconds (valid range: 4–8s; 9:16 aspect ratio).
    - **UX decision:** Video opt-in via checkbox, progress indicator includes "Generating video" when selected, outputs stack vertically.
 8. ✅ **Multi-step signup with session-based auth** — Signup (`/auth/signup`) → Setup brand (`/auth/setup-brand`) → Home. Password hashing with pbkdf2Sync (100k iterations). httpOnly session cookies. Returns users via login page. All flows tested end-to-end with Siam Kitchen brand. | _Completed 2026-05-05_
-9. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
-10. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, update `getCurrentUserId()` to read from Clerk. Wire Clerk→Supabase JWT template.
-11. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
+9. ~~**Campaign Creator (multi-post + ZIP download)**~~ — **Backlogged (low pri).** Doesn't match real F&B workflow. Revisit post-launch.
+10. ~~**Auth swap (Clerk)**~~ — **Backlogged (higher pri than step 9).** Session-based auth is good enough for invite-only MVP. Swap when scaling. Consider simple invite code on signup form as short-term gate.
+11. **Invite-only flow + waitlist page** — Deferred with Clerk.
 
 Deployment and production readiness items (Vercel prod env vars, Sentry, uptime monitoring) happen after step 5 once there's a real pipeline to observe.
 
@@ -101,10 +101,9 @@ Ready to proceed to step 7 (video generation).
 
 ## Next session: pick up here
 
-1. **Step 9** — Multi-post + ZIP bundling (required before auth swap)
-2. **Output quality refinement** — QA image/video/caption consistency across F&B use-cases (deferred polish, not blocking)
-3. **Step 10** — Auth swap (Clerk) — install SDK, update middleware, swap `getCurrentUserId()` implementation
-4. **Step 11** — Invite-only + waitlist page
+1. **Image + video prompt refinement** — improve generation relevance and quality across F&B use-cases
+2. **Brand voice captioning** — captions should reflect the brand's voice, not generic copy
+3. **UI polish for demo** — cleaner layout and flow so the product is presentable to investors/users
 
 ---
 
