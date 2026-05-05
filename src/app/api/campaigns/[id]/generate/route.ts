@@ -5,6 +5,205 @@ import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
+export interface DirectorBrief {
+  hero_label: string
+  sacred_hierarchy: string
+  creative_direction: {
+    lighting_sculpting: string
+    lens_intent: string
+    texture_notes: string
+    color_grade: string
+  }
+  kinetic_script: {
+    camera_vector: string
+    parallax_priority: string
+    secondary_motion: string
+  }
+  expendable_elements: string
+  image_brief: string
+  video_brief: string
+}
+
+function safeParseJson<T>(raw: string): T | null {
+  const cleaned = raw
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/```\s*$/i, '')
+    .trim()
+  try {
+    return JSON.parse(cleaned) as T
+  } catch {
+    const match = cleaned.match(/\{[\s\S]*\}/)
+    if (match) {
+      try {
+        return JSON.parse(match[0]) as T
+      } catch {
+        return null
+      }
+    }
+    return null
+  }
+}
+
+function buildFallbackBrief(postTopic: string): DirectorBrief {
+  const subject = postTopic || 'food subject'
+  return {
+    hero_label: subject,
+    sacred_hierarchy:
+      'Preserve all food geometry, plating structure, and environmental background exactly as photographed.',
+    creative_direction: {
+      lighting_sculpting:
+        'Warm directional side light from camera left at 45 degrees, soft shadow pooling on the right side of the plate',
+      lens_intent: '85mm equivalent at f/2.8, subject tack-sharp, background falls into soft focus',
+      texture_notes:
+        'Render surface textures with natural tactile quality, realistic specular highlights, and visible material grain',
+      color_grade:
+        'Warm editorial grade with amber highlights, softened brown shadows, and elevated micro-contrast',
+    },
+    kinetic_script: {
+      camera_vector: 'Slow horizontal trucking shot, 3-inch slide to the right at constant pace',
+      parallax_priority:
+        'Foreground subject moves faster than background, creating natural depth separation',
+      secondary_motion: 'none',
+    },
+    expendable_elements: 'Current lighting atmosphere and tonal treatment',
+    image_brief: `Using the ${subject} as hero, execute a high-end commercial reshoot. Keep all food geometry and plating identical. Discard current lighting and apply warm directional side light from camera left. Render with editorial color grade and professional depth of field. Do not add any new objects, dishes, or scene elements.`,
+    video_brief: `Animate the ${subject} with a slow horizontal trucking shot moving 3 inches to the right. Keep all food geometry and plating identical. Use natural parallax to reveal scene depth. Camera movement should feel like a high-end commercial. Do not add any new objects, dishes, or scene elements.`,
+  }
+}
+
+function buildVisionPrompt({
+  brandName,
+  brandDesc,
+  brandVoice,
+  postTopic,
+}: {
+  brandName: string
+  brandDesc: string
+  brandVoice: string
+  postTopic: string
+}): string {
+  return `You are a commercial food cinematography director analyzing an uploaded food or drink image.
+
+This content will be published on Instagram. Your job is NOT to describe the photo literally. Extract what the image should BECOME — a high-end commercial reshoot that keeps the food identical but elevates everything else.
+
+Brand context (use to align color grade and mood):
+Brand: ${brandName || 'not specified'}
+Description: ${brandDesc || 'not specified'}
+Voice: ${brandVoice || 'not specified'}
+Post topic: ${postTopic || 'not specified'}
+
+Return ONLY valid JSON in this exact shape:
+
+{
+  "hero_label": "",
+  "sacred_hierarchy": "",
+  "creative_direction": {
+    "lighting_sculpting": "",
+    "lens_intent": "",
+    "texture_notes": "",
+    "color_grade": ""
+  },
+  "kinetic_script": {
+    "camera_vector": "",
+    "parallax_priority": "",
+    "secondary_motion": ""
+  },
+  "expendable_elements": "",
+  "image_brief": "",
+  "video_brief": ""
+}
+
+Rules:
+
+hero_label: 1-3 word dish/drink name only (e.g. "carnitas tacos", "espresso martini")
+
+sacred_hierarchy: Describe exactly what must not change — food geometry, ingredient placement, plating structure, visible surface and environmental background. Lighting and atmosphere are NOT sacred.
+
+creative_direction.lighting_sculpting: Specify source angle (e.g. "45 degrees camera-left"), quality (hard/soft/diffused), and shadow placement. Must be directional — never flat or overhead.
+
+creative_direction.lens_intent: Specify focal length equivalent, f-stop, and depth behavior (e.g. "85mm at f/2.8, subject sharp, background falls into gentle focus").
+
+creative_direction.texture_notes: Describe tactile rendering priorities using sensory language — moisture, translucence, oil sheen, crispness, char, condensation, grain, surface irregularities. No generic quality language.
+
+creative_direction.color_grade: Name a specific editorial grade aligned with the brand voice. Include highlight temperature, shadow treatment, and contrast character (e.g. "warm Bangkok street-food — amber highlights, softened brown shadows, elevated micro-contrast").
+
+kinetic_script.camera_vector: Specify a cinematography movement type and magnitude. Allowed: trucking shot, dolly, orbital arc, tilt-up, parallax drift. Never zoom or smooth animation.
+
+kinetic_script.parallax_priority: Describe the foreground/background depth relationship during camera movement. Background must remain structurally recognizable if visible in original.
+
+kinetic_script.secondary_motion: Identify natural motion opportunities physically implied by the image — steam, condensation, garnish flutter. If none are clearly visible, write exactly: none
+
+expendable_elements: Only lighting atmosphere and tonal treatment are expendable. Food geometry, plating, and environmental background are never expendable.
+
+image_brief: 3-5 sentences written as instructions to a commercial director for a still image shoot. Must explicitly permit creative freedom in lighting, atmosphere, depth, and color. Must explicitly forbid scene expansion or added objects. No kinematic language. IMPORTANT: Use plain declarative sentences only — no apostrophes, no double-quote characters.
+
+video_brief: 3-5 sentences written as instructions to a commercial director for a video shoot. Must describe camera movement using physical cinematography terms. Must explicitly forbid scene expansion or added objects. No color grade language. IMPORTANT: Use plain declarative sentences only — no apostrophes, no double-quote characters.
+
+Do NOT: describe the image plainly, invent new food items or props, expand into a restaurant spread, mention AI, output markdown, output explanation.
+
+Output ONLY valid JSON.`
+}
+
+function buildGeminiPrompt({
+  brief,
+  subjectAnchor,
+  brandName,
+  brandDesc,
+  brandVoice,
+  postTopic,
+}: {
+  brief: DirectorBrief
+  subjectAnchor: string
+  brandName: string
+  brandDesc: string
+  brandVoice: string
+  postTopic: string
+}): string {
+  return `${brief.image_brief}
+
+Sacred Hierarchy — do not change:
+Hero: ${subjectAnchor}
+${brief.sacred_hierarchy}
+
+Lighting:
+${brief.creative_direction.lighting_sculpting}
+
+Lens:
+${brief.creative_direction.lens_intent}
+
+Texture Rendering:
+${brief.creative_direction.texture_notes}
+
+Color Grade:
+${brief.creative_direction.color_grade}
+
+Brand Context:
+Brand: ${brandName}
+Description: ${brandDesc}
+Voice: ${brandVoice}
+Post Topic: ${postTopic}
+
+Sacred Constraints:
+- Preserve exact food geometry, ingredient placement, and plating structure
+- Preserve the environmental background structure exactly as photographed
+- Do not add extra dishes, drinks, props, utensils, or background elements
+- Do not reinterpret the composition into a broader scene
+
+Creative Latitude:
+- Lighting atmosphere, direction, and quality may evolve
+- Tonal treatment and color grade may evolve
+- Depth treatment and lens character may evolve
+- Texture realism and surface dimensionality should be elevated
+
+Instagram Format:
+- Compose for portrait or square format
+- Clear subject hierarchy optimized for mobile-first viewing
+
+Negative Prompt:
+digital zoom, plastic appearance, CGI look, AI-generated appearance, watermarks, text overlays, logos, flat lighting, studio setup, waxy texture, oversharpening, stock photo aesthetic, fake restaurant spread, extra dishes, added drinks, invented props, artificial symmetry, perfectly centered composition`
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await params
@@ -17,12 +216,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const supabase = await getAuthedSupabaseAdmin()
     await supabase.from('campaigns').update({ status: 'generating' }).eq('id', campaignId)
 
-    // Fetch campaign context
+    // Fetch campaign + brand context before Vision
     const { data: campaign } = await supabase
       .from('campaigns')
       .select('brand_id, post_topic')
       .eq('id', campaignId)
       .single()
+
+    const postTopic = campaign?.post_topic ?? ''
 
     const { data: brand } = campaign
       ? await supabase
@@ -35,60 +236,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandName = brand?.name ?? ''
     const brandDesc = brand?.description ?? ''
     const brandVoice = brand?.brand_voice ?? ''
-    const postTopic = campaign?.post_topic ?? ''
 
-    // STEP 1: Vision Analysis with Claude
-    interface ImageContext {
-      primary_subject: string
-      subject_details: string
-      surface: {
-        type: string
-        material: string
-        color: string
-        visible_condition: string
-      }
-      background: {
-        description: string
-        distinct_elements: string
-        dominant_colors: string
-      }
-      lighting: {
-        source: string
-        direction: string
-        quality: string
-        shadow_behavior: string
-      }
-      composition: {
-        angle: string
-        professional_angle_recommendation: string
-      }
-      mood: string
-      realism_details: string
-      generation_guidance: {
-        preserve: string
-        improve: string
-        avoid_changing: string
-      }
-    }
-
-    let imageContext: ImageContext = {
-      primary_subject: '',
-      subject_details: '',
-      surface: { type: '', material: '', color: '', visible_condition: '' },
-      background: { description: '', distinct_elements: '', dominant_colors: '' },
-      lighting: { source: '', direction: '', quality: '', shadow_behavior: '' },
-      composition: { angle: '', professional_angle_recommendation: '' },
-      mood: '',
-      realism_details: '',
-      generation_guidance: { preserve: '', improve: '', avoid_changing: '' },
-    }
+    // STEP 1: Vision analysis — Director's Brief
+    let brief: DirectorBrief = buildFallbackBrief(postTopic)
+    let uploadedBase64 = ''
 
     if (uploadedImageUrl) {
       try {
         const imgRes = await fetch(uploadedImageUrl)
         if (imgRes.ok) {
           const imgBuffer = await imgRes.arrayBuffer()
-          const base64Image = Buffer.from(imgBuffer).toString('base64')
+          uploadedBase64 = Buffer.from(imgBuffer).toString('base64')
+          const mimeType = imgRes.headers.get('content-type')?.split(';')[0] || 'image/jpeg'
 
           const client = new Anthropic()
           const visionRes = await client.messages.create({
@@ -102,58 +261,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     type: 'image',
                     source: {
                       type: 'base64',
-                      media_type: 'image/jpeg',
-                      data: base64Image,
+                      media_type: mimeType as
+                        | 'image/jpeg'
+                        | 'image/png'
+                        | 'image/gif'
+                        | 'image/webp',
+                      data: uploadedBase64,
                     },
                   },
                   {
                     type: 'text',
-                    text: `Analyze this product photo and return detailed structured JSON for regeneration.
-
-Identify the primary subject (main product/dish/item). Describe all other elements in relation to it.
-
-Return ONLY valid JSON with this exact structure:
-{
-  "primary_subject": "The main focal item (e.g., dish, drink, product)",
-  "subject_details": "Key physical details: color, texture, preparation state, visible components, size relative to frame",
-  "surface": {
-    "type": "What it sits on (plate, board, counter, napkin, table, etc.)",
-    "material": "Material appearance (ceramic, glass, wood, marble, etc.)",
-    "color": "Color(s) and tones",
-    "visible_condition": "Texture, wear, cleanliness, reflectiveness (e.g., glossy ceramic, weathered wood, pristine linen)"
-  },
-  "background": {
-    "description": "What's visible beyond the subject and surface (blurred, environmental, plain, etc.)",
-    "distinct_elements": "Any recognizable background objects, architecture, or environment cues (e.g., window light, restaurant interior, outdoor setting)",
-    "dominant_colors": "Primary background colors and tones"
-  },
-  "lighting": {
-    "source": "Where light appears to come from (window, overhead, side light, mixed sources, etc.)",
-    "direction": "Direction from subject's perspective (top-left, front-left, back, diffuse, etc.)",
-    "quality": "Lighting character (soft, directional, dappled, harsh, warm, cool, golden, diffuse, etc.)",
-    "shadow_behavior": "Shadow characteristics (soft shadows, defined shadows, no visible shadows, dramatic shadows, etc.)"
-  },
-  "composition": {
-    "angle": "Camera angle and perspective (straight-on, overhead, 45-degree, low angle, macro, wide, etc.)",
-    "professional_angle_recommendation": "Closest professional/editorial angle standard (e.g., 'overhead flat lay', '45-degree three-quarter view', 'straight-on portrait', 'low-angle dramatic')"
-  },
-  "mood": "Overall feeling conveyed (warm, inviting, elegant, casual, vibrant, moody, appetizing, etc.)",
-  "realism_details": "Small realistic details that ground the image (condensation, crumbs, wear, shadows, depth, reflections, etc.)",
-  "generation_guidance": {
-    "preserve": "What must stay the same (primary subject's core appearance, recognizable details, surface type, distinct background elements if present)",
-    "improve": "What to enhance (lighting quality, color vibrancy, surface texture clarity, composition balance, depth/dimension)",
-    "avoid_changing": "What should not be altered (product identity, surface type, lighting direction, camera angle, if realistic)"
-  }
-}
-
-Rules:
-- Be specific and observational, not abstract
-- Do not infer details not visible in the image
-- Describe only what you can see
-- Keep each field concise but complete
-- For lighting: describe what you observe, not assumptions
-- For realism_details: note imperfections, texture, depth, shadows that make it feel real
-- For generation_guidance: be prescriptive about what the regenerated image should preserve vs. improve`,
+                    text: buildVisionPrompt({ brandName, brandDesc, brandVoice, postTopic }),
                   },
                 ],
               },
@@ -161,92 +279,25 @@ Rules:
           })
 
           const raw = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
-          const cleanJson = raw
-            .replace(/^```json\s*/i, '')
-            .replace(/^```\s*/i, '')
-            .replace(/```\s*$/i, '')
-            .trim()
-          imageContext = JSON.parse(cleanJson)
+          const parsed = safeParseJson<DirectorBrief>(raw)
+          if (parsed?.hero_label) brief = parsed
         }
       } catch (err) {
-        console.warn('Vision analysis error, proceeding with fallback:', err)
+        console.warn('Vision analysis failed, using fallback brief:', err)
       }
     }
 
-    // Use structured vision analysis directly in the prompt
-    const vision = imageContext
+    const subjectAnchor = postTopic.trim() || brief.hero_label
 
-    const negativePrompt = `studio setup, product photography, isolated subject, cutout look, perfectly centered, symmetrical framing, staged presentation, plain white background, sterile background, overly clean, artificial environment, waxy texture, plastic appearance, glossy finish, synthetic material, overly smooth, uniform texture, unrealistic rendering, perfect lighting, flat lighting, evenly lit, artificial gradients, digital highlights, unrealistic shadows, unrealistic light falloff, exaggerated depth of field, artificial blur, unrealistic bokeh, artificial focus effects, AI-generated appearance, CGI look, rendered image, digital enhancement, computer-generated, overly sharp edges, stock photo aesthetic, artificial perfection, hyper-polished, obvious AI, filter applied, edited appearance, color graded`
-
-    // STEP 2: Image Generation with Gemini 2.5 Flash (free tier multimodal image output)
-    const fullPrompt = `Generate a realistic, editorial-quality food and beverage image based on the uploaded photo.
-
-Primary subject:
-${vision.primary_subject}
-
-Subject details:
-${vision.subject_details}
-
-Brand context:
-Brand: ${brandName}
-Description: ${brandDesc}
-Brand voice: ${brandVoice}
-Post topic: ${postTopic}
-
-Scene preservation:
-Preserve the primary subject and its recognizable details. The generated image should feel like an elevated version of the uploaded photo, not a completely different scene.
-
-Surface:
-${vision.surface?.type}, ${vision.surface?.material}, ${vision.surface?.color}, ${vision.surface?.visible_condition}
-
-Background:
-${vision.background?.description}
-
-Background treatment:
-If the uploaded photo has a clear setting or distinct background elements, preserve them in a subtle, realistic way:
-${vision.background?.distinct_elements}
-
-If the uploaded photo has a plain, empty, or unclear background, create a soft neutral background based on these dominant colors:
-${vision.background?.dominant_colors}
-Use gentle natural blur, not artificial bokeh.
-
-Lighting:
-Preserve the visible lighting logic where possible.
-Source: ${vision.lighting?.source}
-Direction: ${vision.lighting?.direction}
-Quality: ${vision.lighting?.quality}
-Shadow behavior: ${vision.lighting?.shadow_behavior}
-
-Improve the lighting only enough to feel natural, dimensional, and editorial. Shadows must follow the same direction as the light source. Avoid impossible highlights, mismatched shadows, or flat even lighting.
-
-Composition:
-Use the original image angle as the foundation:
-${vision.composition?.angle}
-
-Adjust it toward the closest natural professional/editorial angle:
-${vision.composition?.professional_angle_recommendation}
-
-Do not force a default overhead angle or default 35mm look unless it matches the uploaded photo. Maintain realistic camera perspective, natural framing, and believable depth.
-
-Mood:
-${vision.mood}
-
-Realism details to preserve:
-${vision.realism_details}
-
-Generation guidance:
-Preserve:
-${vision.generation_guidance?.preserve}
-
-Improve:
-${vision.generation_guidance?.improve}
-
-Avoid changing:
-${vision.generation_guidance?.avoid_changing}
-
-The final image should feel real, grounded, and naturally photographed. Prioritize believable light, material texture, imperfect details, and scene continuity over visual perfection.
-
-Avoid: ${negativePrompt}`
+    // STEP 2: Image generation with Gemini 2.5 Flash
+    const geminiPrompt = buildGeminiPrompt({
+      brief,
+      subjectAnchor,
+      brandName,
+      brandDesc,
+      brandVoice,
+      postTopic,
+    })
 
     const genRes = await fetch(
       `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
@@ -257,36 +308,20 @@ Avoid: ${negativePrompt}`
           contents: [
             {
               parts: [
-                {
-                  text: fullPrompt,
-                },
+                { text: geminiPrompt },
+                ...(uploadedBase64
+                  ? [{ inline_data: { mime_type: 'image/jpeg', data: uploadedBase64 } }]
+                  : []),
               ],
             },
           ],
-          generationConfig: {
-            response_modalities: ['IMAGE'],
-          },
+          generationConfig: { response_modalities: ['IMAGE'] },
           safetySettings: [
-            {
-              category: 'HARM_CATEGORY_HATE_SPEECH',
-              threshold: 'BLOCK_ONLY_HIGH',
-            },
-            {
-              category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT',
-              threshold: 'BLOCK_ONLY_HIGH',
-            },
-            {
-              category: 'HARM_CATEGORY_DANGEROUS_CONTENT',
-              threshold: 'BLOCK_ONLY_HIGH',
-            },
-            {
-              category: 'HARM_CATEGORY_HARASSMENT',
-              threshold: 'BLOCK_ONLY_HIGH',
-            },
-            {
-              category: 'HARM_CATEGORY_CIVIC_INTEGRITY',
-              threshold: 'BLOCK_ONLY_HIGH',
-            },
+            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
           ],
         }),
       },
@@ -323,9 +358,7 @@ Avoid: ${negativePrompt}`
       )
     }
 
-    const generatedBase64 = imagePart.inlineData.data
-
-    const generatedBuffer = Buffer.from(generatedBase64, 'base64')
+    const generatedBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
 
     // STEP 3: Upload to Supabase Storage
     const storagePath = `${campaignId}/enhanced.jpg`
@@ -343,7 +376,6 @@ Avoid: ${negativePrompt}`
 
     const enhancedImageUrl = publicUrlData.publicUrl
 
-    // Save asset record
     const { data: asset, error: assetError } = await supabase
       .from('assets')
       .insert({ campaign_id: campaignId, asset_type: 'image', asset_url: enhancedImageUrl })
@@ -356,7 +388,7 @@ Avoid: ${negativePrompt}`
 
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
-    return NextResponse.json({ asset_url: enhancedImageUrl, asset })
+    return NextResponse.json({ asset_url: enhancedImageUrl, asset, director_brief: brief })
   } catch (err) {
     console.error('Generation error:', err)
     return NextResponse.json({ message: 'Generation failed' }, { status: 500 })

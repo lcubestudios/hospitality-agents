@@ -5,6 +5,7 @@ import { CheckCircle, ChevronDown, ChevronUp, Circle, Loader2, X } from 'lucide-
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Label } from '@/components/ui/label'
+import type { DirectorBrief } from '@/app/api/campaigns/[id]/generate/route'
 
 const MAX_PHOTOS = 1
 const MAX_ARCHIVES = 2
@@ -56,6 +57,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   })
   const [archives, setArchives] = useState<OutputArchive[]>([])
   const [expandedArchiveId, setExpandedArchiveId] = useState<number | null>(null)
+  const [directorBrief, setDirectorBrief] = useState<DirectorBrief | null>(null)
 
   const cardRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -124,7 +126,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   // Core generation steps — shared by initial generate and regen
   async function runGenerationSteps(cId: string, urls: string[]) {
     let freshImageUrl: string | null = null
-    let freshCaption: string | null = null
+    let freshBrief: DirectorBrief | null = null
 
     if (generationOptions.image) {
       setStage('generating')
@@ -134,9 +136,11 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         body: JSON.stringify({ image_url: urls[0] }),
       })
       if (!res.ok) throw new Error('Image generation failed')
-      const { asset_url } = await res.json()
-      freshImageUrl = asset_url
-      setResultUrl(asset_url)
+      const data = await res.json()
+      freshImageUrl = data.asset_url
+      freshBrief = data.director_brief ?? null
+      setResultUrl(data.asset_url)
+      setDirectorBrief(freshBrief)
     }
 
     if (generationOptions.caption) {
@@ -147,9 +151,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         body: JSON.stringify({ image_url: urls[0] ?? null }),
       })
       if (!res.ok) throw new Error('Caption generation failed')
-      const data = await res.json()
-      freshCaption = data.caption
-      setCaptionResult(data)
+      setCaptionResult(await res.json())
     }
 
     if (generationOptions.video) {
@@ -158,9 +160,10 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          caption: freshCaption ?? captionResult?.caption ?? '',
           // pass enhanced image if generated this run, else fall back to original upload
           image_url: freshImageUrl ?? resultUrl ?? urls[0],
+          // pass cached brief so video route skips Vision
+          director_brief: freshBrief ?? directorBrief ?? null,
         }),
       })
       if (!res.ok) throw new Error('Video generation failed')
@@ -245,6 +248,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     setResultUrl(null)
     setCaptionResult(null)
     setVideoUrl(null)
+    setDirectorBrief(null)
     setError('')
     cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
@@ -340,7 +344,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             <Label htmlFor="post_topic">What is this post about?</Label>
             <textarea
               id="post_topic"
-              placeholder="e.g. Launching our new truffle pizza this Friday night"
+              placeholder="e.g. Launching our new truffle pizza this Friday — include the food or drink name for best results"
               value={postTopic}
               onChange={(e) => setPostTopic(e.target.value)}
               readOnly={inputsLocked}
