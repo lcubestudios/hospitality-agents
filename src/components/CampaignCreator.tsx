@@ -500,16 +500,8 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         <Card className="p-6">
           <h3 className="mb-6 text-lg font-semibold">Campaign Outputs</h3>
 
-          {/* Output grid */}
-          <div
-            className={
-              [resultUrl, captionResult, videoUrl].filter(Boolean).length === 1
-                ? 'grid grid-cols-1'
-                : [resultUrl, captionResult, videoUrl].filter(Boolean).length === 2
-                  ? 'grid grid-cols-2 gap-6'
-                  : 'grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'
-            }
-          >
+          {/* Output stack (vertical) */}
+          <div className="flex flex-col gap-6">
             {resultUrl && (
               <div className="flex flex-col gap-3">
                 <div className="min-h-64 overflow-hidden rounded-lg border bg-gray-50">
@@ -599,6 +591,9 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
 
           {/* Bottom actions */}
           <div className="mt-8 space-y-2 border-t pt-4">
+            <Button onClick={saveCurrentToArchive} variant="outline" className="w-full">
+              Save to Archive
+            </Button>
             <Button onClick={handleRegenerateAll} disabled={isLoading} className="w-full">
               Regenerate All
             </Button>
