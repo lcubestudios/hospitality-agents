@@ -32,9 +32,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandName = brand?.name ?? 'our brand'
     const brandDesc = brand?.description ?? ''
     const brandVoice = brand?.brand_voice ?? ''
-    const postTopic = campaign?.post_topic ?? 'a new product photo'
+    const postTopic = campaign?.post_topic ?? 'a social media post'
 
-    // Analyze uploaded photo for product context
+    // Analyze uploaded photo for product context (optional)
     let productDetails = ''
     if (photoUrl) {
       try {

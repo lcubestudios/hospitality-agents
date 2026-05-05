@@ -4,7 +4,10 @@ import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 
 export default async function Home() {
   const supabase = await getAuthedSupabaseAdmin()
-  const { data: brands } = await supabase.from('brands').select('id, name, description').limit(1)
+  const { data: brands } = await supabase
+    .from('brands')
+    .select('id, name, description, brand_voice')
+    .limit(1)
   const brand = brands?.[0]
 
   if (!brand) {
@@ -18,7 +21,12 @@ export default async function Home() {
   return (
     <main className="min-h-screen bg-gray-100 p-4">
       <div className="mx-auto max-w-2xl space-y-6">
-        <BrandPanel id={brand.id} name={brand.name} description={brand.description ?? ''} />
+        <BrandPanel
+          id={brand.id}
+          name={brand.name}
+          description={brand.description ?? ''}
+          brand_voice={brand.brand_voice ?? ''}
+        />
         <CampaignCreator brandId={brand.id} />
       </div>
     </main>

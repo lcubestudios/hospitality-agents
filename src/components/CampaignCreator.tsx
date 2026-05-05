@@ -144,7 +144,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       const res = await fetch(`/api/campaigns/${cId}/caption`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: urls[0] }),
+        body: JSON.stringify({ image_url: urls[0] ?? null }),
       })
       if (!res.ok) throw new Error('Caption generation failed')
       const data = await res.json()
@@ -170,9 +170,12 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   }
 
   async function handleGenerate() {
-    if (!photos.length) return
     if (!generationOptions.image && !generationOptions.caption && !generationOptions.video) {
       setError('Select at least one output to generate.')
+      return
+    }
+    if ((generationOptions.image || generationOptions.video) && !photos.length) {
+      setError('Image and video generation require photos.')
       return
     }
     setError('')
@@ -181,8 +184,6 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     setVideoUrl(null)
 
     try {
-      setStage('uploading')
-
       const campaignRes = await fetch('/api/campaigns', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -193,18 +194,20 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       setCampaignId(campaign.id)
 
       const urls: string[] = []
-      for (const slot of photos) {
-        const formData = new FormData()
-        formData.append('file', slot.file)
-        formData.append('campaign_id', campaign.id)
-        const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
-        if (!uploadRes.ok) throw new Error('Failed to upload photo')
-        const { url } = await uploadRes.json()
-        urls.push(url)
+      if (photos.length > 0) {
+        setStage('uploading')
+        for (const slot of photos) {
+          const formData = new FormData()
+          formData.append('file', slot.file)
+          formData.append('campaign_id', campaign.id)
+          const uploadRes = await fetch('/api/upload', { method: 'POST', body: formData })
+          if (!uploadRes.ok) throw new Error('Failed to upload photo')
+          const { url } = await uploadRes.json()
+          urls.push(url)
+        }
+        setUploadedUrls(urls)
+        setPhotos((prev) => prev.map((slot, i) => ({ ...slot, uploadedUrl: urls[i] ?? null })))
       }
-
-      setUploadedUrls(urls)
-      setPhotos((prev) => prev.map((slot, i) => ({ ...slot, uploadedUrl: urls[i] ?? null })))
 
       await runGenerationSteps(campaign.id, urls)
       setStage('done')
@@ -267,14 +270,14 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   }
 
   async function handleRegenCaption() {
-    if (!campaignId || !uploadedUrls.length) return
+    if (!campaignId) return
     setRegenCaptionLoading(true)
     setError('')
     try {
       const res = await fetch(`/api/campaigns/${campaignId}/caption`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: uploadedUrls[0] }),
+        body: JSON.stringify({ image_url: uploadedUrls[0] ?? null }),
       })
       if (!res.ok) throw new Error('Caption regeneration failed')
       setCaptionResult(await res.json())
@@ -322,6 +325,8 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   }
 
   const inputsLocked = !isIdle
+  const photosRequired = generationOptions.image || generationOptions.video
+  const canGenerate = postTopic.trim() && (photosRequired ? photos.length > 0 : true)
 
   return (
     <div className="space-y-6">
@@ -344,73 +349,75 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             />
           </div>
 
-          {/* Photos */}
-          <div className={inputsLocked ? 'opacity-60' : ''}>
-            <div className="mb-2 flex items-center justify-between">
-              <Label>
-                Product photos ({photos.length}/{MAX_PHOTOS})
-              </Label>
-              {!inputsLocked && photos.length < MAX_PHOTOS && (
-                <label className="cursor-pointer rounded-md bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-200">
-                  + Add photo
+          {/* Photos & Videos */}
+          {(photosRequired || photos.length > 0) && (
+            <div className={inputsLocked ? 'opacity-60' : ''}>
+              <div className="mb-2 flex items-center justify-between">
+                <Label>
+                  Product photos and/or videos ({photos.length}/{MAX_PHOTOS})
+                </Label>
+                {!inputsLocked && photos.length < MAX_PHOTOS && (
+                  <label className="cursor-pointer rounded-md bg-gray-100 px-3 py-1 text-sm font-medium text-gray-700 hover:bg-gray-200">
+                    + Add file
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
+                      multiple
+                      onChange={handleAddPhotos}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+              </div>
+
+              {!inputsLocked && photos.length === 0 && photosRequired && (
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-8 text-center text-sm text-gray-400 hover:border-gray-400">
+                  Click to upload up to {MAX_PHOTOS} photos/videos
                   <input
-                    ref={fileInputRef}
                     type="file"
-                    accept="image/jpeg,image/png,image/webp"
+                    accept="image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm"
                     multiple
                     onChange={handleAddPhotos}
                     className="hidden"
                   />
                 </label>
               )}
+
+              {photos.length > 0 && (
+                <div className="grid grid-cols-3 gap-3">
+                  {photos.map((slot, i) => (
+                    <div key={i} className="group relative">
+                      <img
+                        src={slot.preview}
+                        alt={`Photo ${i + 1}`}
+                        className="h-28 w-full rounded-lg border object-cover"
+                      />
+                      {!inputsLocked && (
+                        <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
+                          <label className="cursor-pointer rounded bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100">
+                            Replace
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              onChange={(e) => handleReplacePhoto(i, e)}
+                              className="hidden"
+                            />
+                          </label>
+                          <button
+                            onClick={() => handleRemovePhoto(i)}
+                            className="rounded bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
-
-            {!inputsLocked && photos.length === 0 && (
-              <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-8 text-center text-sm text-gray-400 hover:border-gray-400">
-                Click to upload up to {MAX_PHOTOS} photos
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  multiple
-                  onChange={handleAddPhotos}
-                  className="hidden"
-                />
-              </label>
-            )}
-
-            {photos.length > 0 && (
-              <div className="grid grid-cols-3 gap-3">
-                {photos.map((slot, i) => (
-                  <div key={i} className="group relative">
-                    <img
-                      src={slot.preview}
-                      alt={`Photo ${i + 1}`}
-                      className="h-28 w-full rounded-lg border object-cover"
-                    />
-                    {!inputsLocked && (
-                      <div className="absolute inset-0 flex items-center justify-center gap-1 rounded-lg bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
-                        <label className="cursor-pointer rounded bg-white px-2 py-1 text-xs font-medium text-gray-700 hover:bg-gray-100">
-                          Replace
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={(e) => handleReplacePhoto(i, e)}
-                            className="hidden"
-                          />
-                        </label>
-                        <button
-                          onClick={() => handleRemovePhoto(i)}
-                          className="rounded bg-white px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
+          )}
 
           {/* Output selection */}
           <div className={inputsLocked ? 'opacity-60' : ''}>
@@ -479,7 +486,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
           )}
 
           {isIdle && (
-            <Button onClick={handleGenerate} disabled={!photos.length} className="w-full">
+            <Button onClick={handleGenerate} disabled={!canGenerate} className="w-full">
               Generate Campaign
             </Button>
           )}
