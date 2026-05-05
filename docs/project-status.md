@@ -60,27 +60,28 @@ Git: `main` branch, 4 commits, pushed to `github.com/LukasAVB/hospitality-agents
 Order of features is **deliberate**. Auth is stubbed, not skipped — the data model exercises RLS from the first migration.
 
 1. ✅ **Supabase project + first migration** — create project, wire client, run initial schema (`users`, `brands`, `campaigns`, `assets`, `generation_jobs`) with RLS policies. Seed the dev user. | _Completed 2026-04-27_
-2. ✅ **Auth stub** — `src/lib/auth.ts` exports `DEV_USER_ID` and `getCurrentUserId()`. Every Supabase call routes through the helper. | _Completed 2026-04-27_
+2. ✅ **Auth stub** — `src/lib/auth.ts` exports `getCurrentUserId()`, reads from session (multi-step signup) or falls back to `DEV_USER_ID`. Every Supabase call routes through the helper. | _Completed 2026-04-27_
 3. ✅ **Brand profile CRUD** — simple form + Supabase write; validates the stub → RLS path end-to-end. Tested locally, form saves brands with `user_id` properly set. | _Completed 2026-04-27_
 4. ✅ **Campaign Creator wizard (images)** — Complete. Upload flow works (photo → Supabase Storage). Image generation uses Claude Vision for product analysis + Gemini 2.5 Flash for generation. Generated image saves to Supabase and displays with download button. | _Completed 2026-04-30_
    - **Vision analysis fix:** Hybrid approach implemented. Claude Sonnet 4.6 analyzes uploaded photos (accurate), output feeds to Gemini for generation. Replaced broken Gemini-3-flash vision endpoint.
    - **Safety filter fix:** Added `safetySettings: [BLOCK_ONLY_HIGH]` for all harm categories to Gemini payload. Typos (e.g., "Mapo") no longer block generation.
    - **Cost:** Claude Vision ~$0.003/image; billing enabled on Anthropic account.
-5. ⚠️ **Campaign Creator (copy + hashtags)** — Caption + hashtag generation wired via Claude Sonnet. brand*voice + post_topic fields added to brands/campaigns. | \_In progress 2026-04-29*
-   - **Caption fix:** Claude wraps JSON in markdown fences. Strip before JSON.parse — fixed 2026-04-29.
+5. ✅ **Campaign Creator (copy + hashtags)** — Caption + hashtag generation wired via Claude Sonnet. brand*voice + post_topic fields added to brands/campaigns. | \_Completed 2026-04-29*
+   - **Caption handling:** Users select outputs via checkboxes (image, caption, video) before generating — solves JSON parsing without workarounds.
 6. ✅ **Basic UI** — Completed 2026-04-29:
    - **Brand context panel** — brand name + description load from Supabase, editable inline with save (PATCH `/api/brands/[id]`). Brand voice deferred (future addition).
    - **Multi-photo upload** — up to 3 photos, hover to replace/remove. All uploaded to Supabase Storage. Single enhanced image output. Multiple outputs noted as future possibility.
-   - **Step progress indicator** — live pipeline steps shown during generation (Uploading → Generating image → Writing caption).
-   - **Isolated regenerate buttons** — separate Regenerate on image and caption cards. Uploaded URLs stored in own state; cache-busted with `?t=Date.now()` so new image renders. Fixed silent early return bug (no feedback when campaignId/uploadedUrls missing).
-7. ✅ **Campaign Creator (video)** — Veo 3 Fast (Google AI Studio) wired via `/api/campaigns/[id]/video`. Prompt built from caption, async polling until done, video uploaded to Supabase Storage, saved to `assets` table. UI: "Generate Video" button appears after caption, video card with player + download. | _Completed 2026-04-30_
+   - **Step progress indicator** — live pipeline steps shown during generation, dynamically includes only selected outputs.
+   - **Isolated regenerate buttons** — separate Regenerate on image, caption, and video cards. Uploaded URLs stored in own state; cache-busted with `?t=Date.now()` so new renders display. Archives store up to 2 previous campaigns.
+7. ✅ **Campaign Creator (video)** — Veo 3 Fast (Google AI Studio) wired via `/api/campaigns/[id]/video`. Prompt built from caption, async polling until done, video uploaded to Supabase Storage, saved to `assets` table. Video generation is opt-in via checkbox, integrates into main "Generate Campaign" flow. | _Completed 2026-04-30_
    - **Approach:** Skipped Creatomate — Veo 3 Fast available on existing Google AI Studio key, no new account needed.
    - **API pattern:** POST `:predictLongRunning` → poll operation every 5s (max 3 min) → download from temp URI → upload to Supabase.
    - **Duration:** 8 seconds (valid range: 4–8s; 9:16 aspect ratio).
-   - **⚠️ UI TODO:** Current "Generate Video" button appears below caption as a standalone step. Needs UX review — how should video generation integrate into the main workflow? See brainstorm note below.
-8. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
-9. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, replace `getCurrentUserId()` body. Wire Clerk→Supabase JWT template.
-10. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
+   - **UX decision:** Video opt-in via checkbox, progress indicator includes "Generating video" when selected, outputs stack vertically.
+8. ✅ **Multi-step signup with session-based auth** — Signup (`/auth/signup`) → Setup brand (`/auth/setup-brand`) → Home. Password hashing with pbkdf2Sync (100k iterations). httpOnly session cookies. Returns users via login page. All flows tested end-to-end with Siam Kitchen brand. | _Completed 2026-05-05_
+9. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
+10. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, update `getCurrentUserId()` to read from Clerk. Wire Clerk→Supabase JWT template.
+11. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
 
 Deployment and production readiness items (Vercel prod env vars, Sentry, uptime monitoring) happen after step 5 once there's a real pipeline to observe.
 
@@ -100,31 +101,22 @@ Ready to proceed to step 7 (video generation).
 
 ## Next session: pick up here
 
-1. **Brainstorm + decide video gen UX** (see below) — then implement
-2. **QA** image + video across real F&B use-cases
-3. **Merge** `feat/campaign-video` → `feat/campaign-images` → `main`
-4. **Step 8** — multi-post + ZIP bundling
+1. **Step 9** — Multi-post + ZIP bundling (required before auth swap)
+2. **Output quality refinement** — QA image/video/caption consistency across F&B use-cases (deferred polish, not blocking)
+3. **Step 10** — Auth swap (Clerk) — install SDK, update middleware, swap `getCurrentUserId()` implementation
+4. **Step 11** — Invite-only + waitlist page
 
 ---
 
-## ⚠️ Brainstorm — Video Gen UI Integration
+## QA Notes — Output Quality (Deferred Polish)
 
-Current state: "Generate Video" is a standalone button that appears after caption. It works but feels disconnected from the main workflow.
+As of 2026-05-05 testing (Siam Kitchen brand):
 
-Questions to answer before implementing the final UX:
+- **Photo generation:** Still questionable relevance; consider adjusting prompts
+- **Video generation:** Food-relevant, quality acceptable; prompt refinement possible
+- **Caption generation:** Consistency to validate across different brands
 
-- Should video generate automatically alongside image + caption (one "Generate All" flow)?
-- Or stay opt-in (user clicks separately after reviewing image + caption)?
-- Where does the video card live — below caption, in a tab, or in a separate output panel?
-- Should the step progress indicator include a "Generating video" step?
-- What happens on regenerate — does it regenerate image + caption + video together or independently?
-
----
-
-## QA Before Merge
-
-- **Image quality review** — Test across various restaurant product photos (dishes, drinks, plating styles) to ensure Claude Vision analysis + Gemini generation produces consistently high-quality outputs
-- **Restaurant use-cases** — Test with real F&B scenarios (pizza, sushi, cocktails, desserts, cafe items) to validate vision accuracy and generation relevance
+Not blocking MVP, but marked for refinement post-launch.
 
 ---
 

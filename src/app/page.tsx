@@ -30,7 +30,7 @@ export default async function Home() {
   return (
     <>
       <SideNav brandId={brand.id} brandName={brand.name} />
-      <main className="ml-64 min-h-screen bg-gray-100 p-4">
+      <main className="ml-16 min-h-screen bg-gray-100 p-4">
         <div className="mx-auto max-w-2xl space-y-6">
           <h1 className="text-2xl font-bold text-gray-800">Campaign Creator</h1>
           <BrandPanel

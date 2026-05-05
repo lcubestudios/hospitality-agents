@@ -24,6 +24,7 @@ interface BrandPanelProps {
 }
 
 export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPanelProps) {
+  const [isEditing, setIsEditing] = useState(false)
   const [nameVal, setNameVal] = useState(name)
   const [descVal, setDescVal] = useState(description)
   const [voicePreset, setVoicePreset] = useState(
@@ -35,12 +36,10 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
   )
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [saved, setSaved] = useState(false)
 
   async function handleSave() {
     setLoading(true)
     setError('')
-    setSaved(false)
 
     try {
       const brandVoice = voicePreset
@@ -57,8 +56,7 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
         throw new Error(err.message || 'Failed to save')
       }
 
-      setSaved(true)
-      setTimeout(() => setSaved(false), 2000)
+      setIsEditing(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
@@ -75,6 +73,36 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
         '',
     )
     setError('')
+    setIsEditing(false)
+  }
+
+  if (!isEditing) {
+    return (
+      <Card className="p-6">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-bold">Brand</h2>
+          <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
+            Edit
+          </Button>
+        </div>
+        <div className="space-y-4 text-sm">
+          <div>
+            <p className="font-semibold text-gray-700">{nameVal}</p>
+          </div>
+          <div>
+            <p className="text-gray-600">{descVal || '—'}</p>
+          </div>
+          {voicePreset && (
+            <div>
+              <p className="text-gray-600">
+                <span className="font-semibold">{voicePreset}</span>
+                {voiceCustom && `. ${voiceCustom}`}
+              </p>
+            </div>
+          )}
+        </div>
+      </Card>
+    )
   }
 
   return (
@@ -136,7 +164,6 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
             Reset
           </Button>
         </div>
-        {saved && <p className="text-sm text-green-600">Saved!</p>}
       </div>
     </Card>
   )
