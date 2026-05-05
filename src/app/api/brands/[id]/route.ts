@@ -37,3 +37,29 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
   }
 }
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await params
+    const [supabase, userId] = await Promise.all([getAuthedSupabaseAdmin(), getCurrentUserId()])
+
+    // Delete all brands for this user
+    const { error: brandError } = await supabase.from('brands').delete().eq('user_id', userId)
+
+    if (brandError) {
+      return NextResponse.json({ message: brandError.message }, { status: 400 })
+    }
+
+    // Delete the user
+    const { error: userError } = await supabase.from('users').delete().eq('id', userId)
+
+    if (userError) {
+      return NextResponse.json({ message: userError.message }, { status: 400 })
+    }
+
+    return NextResponse.json({ message: 'Account deleted successfully' })
+  } catch (err) {
+    console.error('Account delete error:', err)
+    return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
+  }
+}
