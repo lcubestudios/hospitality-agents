@@ -4,7 +4,6 @@ import { useSearchParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
-import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
 const BRAND_VOICE_PRESETS = [

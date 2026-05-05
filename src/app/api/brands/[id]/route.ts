@@ -38,9 +38,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id } = await params
+    await params // consume the params to avoid unused variable warning
     const [supabase, userId] = await Promise.all([getAuthedSupabaseAdmin(), getCurrentUserId()])
 
     // Delete all brands for this user

@@ -43,31 +43,44 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       subject_details: string
       surface: {
         type: string
-        color_palette: string
+        material: string
+        color: string
+        visible_condition: string
       }
       background: {
-        type: string
+        description: string
+        distinct_elements: string
         dominant_colors: string
       }
       lighting: {
-        type: string
+        source: string
         direction: string
-        intensity: string
+        quality: string
+        shadow_behavior: string
       }
       composition: {
         angle: string
-        framing: string
-        focal_point: string
+        professional_angle_recommendation: string
+      }
+      mood: string
+      realism_details: string
+      generation_guidance: {
+        preserve: string
+        improve: string
+        avoid_changing: string
       }
     }
 
     let imageContext: ImageContext = {
       primary_subject: '',
       subject_details: '',
-      surface: { type: '', color_palette: '' },
-      background: { type: '', dominant_colors: '' },
-      lighting: { type: '', direction: '', intensity: '' },
-      composition: { angle: '', framing: '', focal_point: '' },
+      surface: { type: '', material: '', color: '', visible_condition: '' },
+      background: { description: '', distinct_elements: '', dominant_colors: '' },
+      lighting: { source: '', direction: '', quality: '', shadow_behavior: '' },
+      composition: { angle: '', professional_angle_recommendation: '' },
+      mood: '',
+      realism_details: '',
+      generation_guidance: { preserve: '', improve: '', avoid_changing: '' },
     }
 
     if (uploadedImageUrl) {
@@ -95,40 +108,52 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   },
                   {
                     type: 'text',
-                    text: `Analyze this product photo and return structured JSON describing the scene.
+                    text: `Analyze this product photo and return detailed structured JSON for regeneration.
 
-Identify the primary subject (the main product/dish/item). All other elements should be described in relation to this subject.
+Identify the primary subject (main product/dish/item). Describe all other elements in relation to it.
 
-Return valid JSON with exactly this structure:
+Return ONLY valid JSON with this exact structure:
 {
   "primary_subject": "The main focal item (e.g., dish, drink, product)",
-  "subject_details": "Key physical details: color, texture, preparation state, visible components",
+  "subject_details": "Key physical details: color, texture, preparation state, visible components, size relative to frame",
   "surface": {
-    "type": "What the product sits on (plate, board, counter, etc.)",
-    "color_palette": "Colors and tones of the surface"
+    "type": "What it sits on (plate, board, counter, napkin, table, etc.)",
+    "material": "Material appearance (ceramic, glass, wood, marble, etc.)",
+    "color": "Color(s) and tones",
+    "visible_condition": "Texture, wear, cleanliness, reflectiveness (e.g., glossy ceramic, weathered wood, pristine linen)"
   },
   "background": {
-    "type": "Background context (blurred, minimal, environmental)",
-    "dominant_colors": "Primary background colors"
+    "description": "What's visible beyond the subject and surface (blurred, environmental, plain, etc.)",
+    "distinct_elements": "Any recognizable background objects, architecture, or environment cues (e.g., window light, restaurant interior, outdoor setting)",
+    "dominant_colors": "Primary background colors and tones"
   },
   "lighting": {
-    "type": "Lighting style (natural, soft, directional, overhead, etc.)",
-    "direction": "Where light comes from",
-    "intensity": "Brightness level (soft, moderate, bright)"
+    "source": "Where light appears to come from (window, overhead, side light, mixed sources, etc.)",
+    "direction": "Direction from subject's perspective (top-left, front-left, back, diffuse, etc.)",
+    "quality": "Lighting character (soft, directional, dappled, harsh, warm, cool, golden, diffuse, etc.)",
+    "shadow_behavior": "Shadow characteristics (soft shadows, defined shadows, no visible shadows, dramatic shadows, etc.)"
   },
   "composition": {
-    "angle": "Camera angle (straight-on, overhead, 45-degree, etc.)",
-    "framing": "How subject is framed (centered, off-center, tight, wide)",
-    "focal_point": "What draws the eye first"
+    "angle": "Camera angle and perspective (straight-on, overhead, 45-degree, low angle, macro, wide, etc.)",
+    "professional_angle_recommendation": "Closest professional/editorial angle standard (e.g., 'overhead flat lay', '45-degree three-quarter view', 'straight-on portrait', 'low-angle dramatic')"
+  },
+  "mood": "Overall feeling conveyed (warm, inviting, elegant, casual, vibrant, moody, appetizing, etc.)",
+  "realism_details": "Small realistic details that ground the image (condensation, crumbs, wear, shadows, depth, reflections, etc.)",
+  "generation_guidance": {
+    "preserve": "What must stay the same (primary subject's core appearance, recognizable details, surface type, distinct background elements if present)",
+    "improve": "What to enhance (lighting quality, color vibrancy, surface texture clarity, composition balance, depth/dimension)",
+    "avoid_changing": "What should not be altered (product identity, surface type, lighting direction, camera angle, if realistic)"
   }
 }
 
 Rules:
-- Be specific and concrete, not abstract
-- Do not infer, assume, or make up details not visible
-- Do not describe techniques or processes, only the visible result
-- Keep descriptions concise but informative
-- Return ONLY valid JSON`,
+- Be specific and observational, not abstract
+- Do not infer details not visible in the image
+- Describe only what you can see
+- Keep each field concise but complete
+- For lighting: describe what you observe, not assumptions
+- For realism_details: note imperfections, texture, depth, shadows that make it feel real
+- For generation_guidance: be prescriptive about what the regenerated image should preserve vs. improve`,
                   },
                 ],
               },
@@ -148,41 +173,78 @@ Rules:
       }
     }
 
-    const productDetails = [
-      imageContext.primary_subject,
-      imageContext.subject_details,
-      `Surface: ${imageContext.surface?.type} with ${imageContext.surface?.color_palette}`,
-      `Background: ${imageContext.background?.type}`,
-      `Lighting: ${imageContext.lighting?.type} from ${imageContext.lighting?.direction}`,
-      `Composition: ${imageContext.composition?.angle} angle, ${imageContext.composition?.framing} framing`,
-    ]
-      .filter((line) => line && !line.endsWith(': '))
-      .join('\n')
+    // Use structured vision analysis directly in the prompt
+    const vision = imageContext
 
     const negativePrompt = `studio setup, product photography, isolated subject, cutout look, perfectly centered, symmetrical framing, staged presentation, plain white background, sterile background, overly clean, artificial environment, waxy texture, plastic appearance, glossy finish, synthetic material, overly smooth, uniform texture, unrealistic rendering, perfect lighting, flat lighting, evenly lit, artificial gradients, digital highlights, unrealistic shadows, unrealistic light falloff, exaggerated depth of field, artificial blur, unrealistic bokeh, artificial focus effects, AI-generated appearance, CGI look, rendered image, digital enhancement, computer-generated, overly sharp edges, stock photo aesthetic, artificial perfection, hyper-polished, obvious AI, filter applied, edited appearance, color graded`
 
     // STEP 2: Image Generation with Gemini 2.5 Flash (free tier multimodal image output)
-    const contextLines = [
-      `Brand: ${brandName}`,
-      `Description: ${brandDesc}`,
-      `Brand voice: ${brandVoice}`,
-      `Post topic: ${postTopic}`,
-    ]
-      .filter((line) => !line.endsWith(': '))
-      .join('\n')
+    const fullPrompt = `Generate a realistic, editorial-quality food and beverage image based on the uploaded photo.
 
-    const fullPrompt = `Elevate this product photo: enhance the visual presentation while preserving the authentic identity of the subject.
+Primary subject:
+${vision.primary_subject}
 
-Product: ${productDetails}
+Subject details:
+${vision.subject_details}
 
-${contextLines ? `\nBrand context:\n${contextLines}\n` : ''}
-Direction: Create an elevated version that feels authentic, not artificial. Preserve the core visual identity—the colors, textures, and character of the product. Enhance lighting to be more flattering and dimensionally interesting. Refine the setting to feel more intentional and composed, but not sterile. Maintain a natural, food-forward aesthetic as if photographed by a skilled culinary photographer.
+Brand context:
+Brand: ${brandName}
+Description: ${brandDesc}
+Brand voice: ${brandVoice}
+Post topic: ${postTopic}
 
-Composition: Candid but composed. Show the product in a way that invites engagement—not isolated, but situated naturally.
+Scene preservation:
+Preserve the primary subject and its recognizable details. The generated image should feel like an elevated version of the uploaded photo, not a completely different scene.
 
-Lighting: Warm, directional, and dimensional. Soft enough to feel approachable, with enough definition to show texture and depth.
+Surface:
+${vision.surface?.type}, ${vision.surface?.material}, ${vision.surface?.color}, ${vision.surface?.visible_condition}
 
-Setting: Natural surfaces (wood, stone, ceramic). Environmental context that suggests a real moment, not a studio setup.
+Background:
+${vision.background?.description}
+
+Background treatment:
+If the uploaded photo has a clear setting or distinct background elements, preserve them in a subtle, realistic way:
+${vision.background?.distinct_elements}
+
+If the uploaded photo has a plain, empty, or unclear background, create a soft neutral background based on these dominant colors:
+${vision.background?.dominant_colors}
+Use gentle natural blur, not artificial bokeh.
+
+Lighting:
+Preserve the visible lighting logic where possible.
+Source: ${vision.lighting?.source}
+Direction: ${vision.lighting?.direction}
+Quality: ${vision.lighting?.quality}
+Shadow behavior: ${vision.lighting?.shadow_behavior}
+
+Improve the lighting only enough to feel natural, dimensional, and editorial. Shadows must follow the same direction as the light source. Avoid impossible highlights, mismatched shadows, or flat even lighting.
+
+Composition:
+Use the original image angle as the foundation:
+${vision.composition?.angle}
+
+Adjust it toward the closest natural professional/editorial angle:
+${vision.composition?.professional_angle_recommendation}
+
+Do not force a default overhead angle or default 35mm look unless it matches the uploaded photo. Maintain realistic camera perspective, natural framing, and believable depth.
+
+Mood:
+${vision.mood}
+
+Realism details to preserve:
+${vision.realism_details}
+
+Generation guidance:
+Preserve:
+${vision.generation_guidance?.preserve}
+
+Improve:
+${vision.generation_guidance?.improve}
+
+Avoid changing:
+${vision.generation_guidance?.avoid_changing}
+
+The final image should feel real, grounded, and naturally photographed. Prioritize believable light, material texture, imperfect details, and scene continuity over visual perfection.
 
 Avoid: ${negativePrompt}`
 
