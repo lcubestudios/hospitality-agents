@@ -24,6 +24,7 @@ interface ArchivesTabProps {
 export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [expandedOutputs, setExpandedOutputs] = useState<Record<string, Set<string>>>({})
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
 
   function toggleOutput(archiveId: string, key: string) {
@@ -40,6 +41,7 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
 
   async function handleDelete(id: string) {
     setDeleting(id)
+    setConfirmDeleteId(null)
     await onDelete(id)
     setDeleting(null)
     if (expandedId === id) setExpandedId(null)
@@ -228,15 +230,33 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
                 )}
 
                 {/* Delete */}
-                <div className="flex justify-end px-4 py-3">
-                  <button
-                    onClick={() => handleDelete(archive.id)}
-                    disabled={deleting === archive.id}
-                    className="flex items-center gap-1.5 text-xs text-red-400 transition-colors hover:text-red-600 disabled:opacity-50"
-                  >
-                    <X size={12} />
-                    {deleting === archive.id ? 'Deleting...' : 'Delete archive'}
-                  </button>
+                <div className="flex items-center justify-end gap-2 px-4 py-3">
+                  {confirmDeleteId === archive.id ? (
+                    <>
+                      <span className="text-xs text-gray-500">Delete this archive?</span>
+                      <button
+                        onClick={() => handleDelete(archive.id)}
+                        disabled={deleting === archive.id}
+                        className="text-xs font-medium text-red-600 hover:text-red-700 disabled:opacity-50"
+                      >
+                        {deleting === archive.id ? 'Deleting...' : 'Yes, delete'}
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteId(null)}
+                        className="text-xs text-gray-400 hover:text-gray-600"
+                      >
+                        Cancel
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setConfirmDeleteId(archive.id)}
+                      className="flex items-center gap-1.5 text-xs text-red-400 transition-colors hover:text-red-600"
+                    >
+                      <X size={12} />
+                      Delete archive
+                    </button>
+                  )}
                 </div>
               </div>
             )}

@@ -87,19 +87,30 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
         </div>
         <div className="space-y-4 text-sm">
           <div>
-            <p className="font-semibold text-gray-700">{nameVal}</p>
+            <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
+              Brand Name
+            </p>
+            <p className="font-semibold text-gray-800">{nameVal}</p>
           </div>
           <div>
+            <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
+              Description
+            </p>
             <p className="text-gray-600">{descVal || '—'}</p>
           </div>
-          {voicePreset && (
-            <div>
+          <div>
+            <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
+              Brand Voice
+            </p>
+            {voicePreset ? (
               <p className="text-gray-600">
-                <span className="font-semibold">{voicePreset}</span>
+                <span className="font-semibold text-gray-800">{voicePreset}</span>
                 {voiceCustom && `. ${voiceCustom}`}
               </p>
-            </div>
-          )}
+            ) : (
+              <p className="text-gray-400">—</p>
+            )}
+          </div>
         </div>
       </Card>
     )

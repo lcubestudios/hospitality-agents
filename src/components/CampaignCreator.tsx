@@ -48,7 +48,7 @@ function TooltipIcon({ tip }: { tip: string }) {
   return (
     <div className="group relative inline-flex items-center">
       <Info size={13} className="cursor-help text-gray-400 hover:text-gray-600" />
-      <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-52 -translate-x-1/2 rounded bg-gray-800 px-2.5 py-1.5 text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="pointer-events-none absolute right-0 bottom-full z-50 mb-2 w-56 rounded bg-gray-800 px-2.5 py-1.5 text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100">
         {tip}
       </div>
     </div>
@@ -786,7 +786,7 @@ export function CampaignCreator({
 
       {/* Action buttons */}
       {hasOutputs && (
-        <Card className="p-6">
+        <Card className="overflow-visible p-6">
           <p className="mb-3 text-xs font-medium tracking-wide text-gray-500 uppercase">
             Next Actions
           </p>
