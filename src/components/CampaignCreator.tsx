@@ -29,6 +29,8 @@ interface GenerationOptions {
   video: boolean
 }
 
+type ExpandedOutput = 'image' | 'caption' | 'video'
+
 interface OutputArchive {
   id: number
   imageUrl?: string
@@ -58,6 +60,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   const [archives, setArchives] = useState<OutputArchive[]>([])
   const [expandedArchiveId, setExpandedArchiveId] = useState<number | null>(null)
   const [directorBrief, setDirectorBrief] = useState<DirectorBrief | null>(null)
+  const [expandedOutputs, setExpandedOutputs] = useState<Set<ExpandedOutput>>(new Set())
 
   const cardRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -222,7 +225,6 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
 
   async function handleRegenerateAll() {
     if (!campaignId || !uploadedUrls.length) return
-    saveCurrentToArchive()
     setResultUrl(null)
     setCaptionResult(null)
     setVideoUrl(null)
@@ -239,7 +241,6 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   }
 
   function handleGenerateWithDifferentInput() {
-    saveCurrentToArchive()
     setStage('idle')
     setCampaignId(null)
     setUploadedUrls([])
@@ -326,6 +327,24 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   function deleteArchive(id: number) {
     setArchives((prev) => prev.filter((a) => a.id !== id))
     if (expandedArchiveId === id) setExpandedArchiveId(null)
+  }
+
+  function loadTestData() {
+    setCampaignId('test-campaign-id')
+    setPostTopic('Test: Truffle pizza')
+    setStage('done')
+    setGenerationOptions({ image: true, caption: true, video: true })
+    setResultUrl(
+      'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="400" height="300"%3E%3Crect fill="%23ddd" width="400" height="300"/%3E%3Ctext x="50%25" y="50%25" font-size="20" fill="%23666" text-anchor="middle" dy=".3em"%3EMock Image%3C/text%3E%3C/svg%3E',
+    )
+    setCaptionResult({
+      caption:
+        'Fresh truffle pizza, loaded with real shaved truffles and creamy fontina. This is the one you have been dreaming about.',
+      hashtags: ['trufflepizza', 'pizza', 'foodie', 'italianfood'],
+    })
+    setVideoUrl(
+      'data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc2FjAAACAIABAIADAAADAAAAAGZyZWUAAAG/bWRhdAAAB/AAACBQu',
+    )
   }
 
   const inputsLocked = !isIdle
@@ -450,39 +469,168 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             </div>
           </div>
 
-          {/* Progress indicator */}
-          {isLoading && progressSteps.length > 0 && (
+          {/* Progress/Output Accordion */}
+          {(isLoading || hasOutputs) && progressSteps.length > 0 && (
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
               {progressSteps.map(({ key, label }, i) => {
                 const stepIndex = progressSteps.findIndex((s) => s.key === stage)
                 const thisIndex = progressSteps.findIndex((s) => s.key === key)
-                const isDone = thisIndex < stepIndex
-                const isActive = key === stage
+                const isDone = thisIndex < stepIndex || (stage === 'done' && thisIndex <= stepIndex)
+                const isActive = key === stage && isLoading
+                const isExpanded = expandedOutputs.has(key as ExpandedOutput)
+
+                let outputContent: React.ReactNode = null
+                let hasOutput = false
+
+                if (key === 'generating' && resultUrl) {
+                  hasOutput = true
+                  outputContent = (
+                    <div className="flex flex-col gap-3">
+                      <div className="min-h-40 overflow-hidden rounded border bg-white">
+                        <img
+                          src={resultUrl}
+                          alt="Enhanced"
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRegenImage}
+                        disabled={regenImageLoading}
+                        className="w-full"
+                      >
+                        {regenImageLoading ? 'Regenerating...' : 'Regenerate'}
+                      </Button>
+                      <a
+                        href={resultUrl}
+                        download="enhanced-product.jpg"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button variant="outline" size="sm" className="w-full">
+                          Download
+                        </Button>
+                      </a>
+                    </div>
+                  )
+                } else if (key === 'captioning' && captionResult) {
+                  hasOutput = true
+                  outputContent = (
+                    <div className="flex flex-col gap-3">
+                      <div className="rounded border bg-white p-4">
+                        <p className="mb-4 text-sm leading-relaxed text-gray-800">
+                          {captionResult.caption}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {captionResult.hashtags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600"
+                            >
+                              #{tag.replace(/^#/, '')}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRegenCaption}
+                        disabled={regenCaptionLoading}
+                        className="w-full"
+                      >
+                        {regenCaptionLoading ? 'Regenerating...' : 'Regenerate'}
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={handleCopy} className="w-full">
+                        {copied ? 'Copied!' : 'Copy All'}
+                      </Button>
+                    </div>
+                  )
+                } else if (key === 'videoing' && videoUrl) {
+                  hasOutput = true
+                  outputContent = (
+                    <div className="flex flex-col gap-3">
+                      <div className="min-h-40 overflow-hidden rounded border bg-white">
+                        <video src={videoUrl} controls className="h-full w-full" />
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRegenVideo}
+                        disabled={videoLoading}
+                        className="w-full"
+                      >
+                        {videoLoading ? 'Regenerating...' : 'Regenerate'}
+                      </Button>
+                      <a
+                        href={videoUrl}
+                        download="campaign-video.mp4"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Button variant="outline" size="sm" className="w-full">
+                          Download
+                        </Button>
+                      </a>
+                    </div>
+                  )
+                }
+
                 return (
-                  <div
-                    key={key}
-                    className={[
-                      'flex items-center gap-3 px-4 py-3 text-sm transition-colors duration-300',
-                      i > 0 ? 'border-t border-gray-200' : '',
-                      isActive ? 'animate-pulse bg-blue-50' : '',
-                    ].join(' ')}
-                  >
-                    <span className="flex-shrink-0">
-                      {isDone && <CheckCircle size={15} className="text-green-500" />}
-                      {isActive && <Loader2 size={15} className="animate-spin text-blue-500" />}
-                      {!isDone && !isActive && <Circle size={15} className="text-gray-300" />}
-                    </span>
-                    <span
-                      className={
-                        isDone
-                          ? 'text-gray-400 line-through'
-                          : isActive
-                            ? 'font-medium text-gray-800'
-                            : 'text-gray-400'
-                      }
+                  <div key={key}>
+                    <button
+                      onClick={() => {
+                        if (hasOutput) {
+                          setExpandedOutputs((prev) => {
+                            const next = new Set(prev)
+                            if (next.has(key as ExpandedOutput)) {
+                              next.delete(key as ExpandedOutput)
+                            } else {
+                              next.add(key as ExpandedOutput)
+                            }
+                            return next
+                          })
+                        }
+                      }}
+                      className={[
+                        'flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors duration-300',
+                        i > 0 ? 'border-t border-gray-200' : '',
+                        isActive ? 'animate-pulse bg-blue-50' : '',
+                        hasOutput && !isActive ? 'cursor-pointer hover:bg-gray-100' : '',
+                      ].join(' ')}
                     >
-                      {label}
-                    </span>
+                      <span className="flex-shrink-0">
+                        {isDone && <CheckCircle size={15} className="text-green-500" />}
+                        {isActive && <Loader2 size={15} className="animate-spin text-blue-500" />}
+                        {!isDone && !isActive && <Circle size={15} className="text-gray-300" />}
+                      </span>
+                      <span
+                        className={
+                          isDone
+                            ? 'text-gray-600'
+                            : isActive
+                              ? 'font-medium text-gray-800'
+                              : 'text-gray-400'
+                        }
+                      >
+                        {label}
+                      </span>
+                      {hasOutput && (
+                        <span className="ml-auto flex-shrink-0">
+                          {isExpanded ? (
+                            <ChevronUp size={15} className="text-gray-400" />
+                          ) : (
+                            <ChevronDown size={15} className="text-gray-400" />
+                          )}
+                        </span>
+                      )}
+                    </button>
+                    {hasOutput && isExpanded && (
+                      <div className="border-t border-gray-200 bg-white px-4 py-3">
+                        {outputContent}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -490,115 +638,40 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
           )}
 
           {isIdle && (
-            <Button onClick={handleGenerate} disabled={!canGenerate} className="w-full">
-              Generate Campaign
-            </Button>
+            <div className="flex flex-col gap-2">
+              <Button onClick={handleGenerate} disabled={!canGenerate} className="w-full">
+                Generate Campaign
+              </Button>
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  onClick={loadTestData}
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-xs"
+                >
+                  Test Data (UI only, no API)
+                </Button>
+              )}
+            </div>
           )}
 
           {error && <p className="text-sm text-red-600">{error}</p>}
         </div>
       </Card>
 
-      {/* Outputs card */}
+      {/* Action buttons — shown after generation */}
       {hasOutputs && (
         <Card className="p-6">
-          <h3 className="mb-6 text-lg font-semibold">Campaign Outputs</h3>
-
-          {/* Output stack (vertical) */}
-          <div className="flex flex-col gap-6">
-            {resultUrl && (
-              <div className="flex flex-col gap-3">
-                <div className="min-h-64 overflow-hidden rounded-lg border bg-gray-50">
-                  <img src={resultUrl} alt="Enhanced" className="h-full w-full object-cover" />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRegenImage}
-                  disabled={regenImageLoading}
-                  className="w-full"
-                >
-                  {regenImageLoading ? 'Regenerating...' : 'Regenerate'}
-                </Button>
-                <a
-                  href={resultUrl}
-                  download="enhanced-product.jpg"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="outline" size="sm" className="w-full">
-                    Download
-                  </Button>
-                </a>
-              </div>
-            )}
-
-            {captionResult && (
-              <div className="flex flex-col gap-3">
-                <div className="min-h-64 rounded-lg border bg-gray-50 p-4">
-                  <p className="mb-4 text-sm leading-relaxed text-gray-800">
-                    {captionResult.caption}
-                  </p>
-                  <div className="flex flex-wrap gap-1">
-                    {captionResult.hashtags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600"
-                      >
-                        #{tag.replace(/^#/, '')}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRegenCaption}
-                  disabled={regenCaptionLoading}
-                  className="w-full"
-                >
-                  {regenCaptionLoading ? 'Regenerating...' : 'Regenerate'}
-                </Button>
-                <Button variant="outline" size="sm" onClick={handleCopy} className="w-full">
-                  {copied ? 'Copied!' : 'Copy All'}
-                </Button>
-              </div>
-            )}
-
-            {videoUrl && (
-              <div className="flex flex-col gap-3">
-                <div className="min-h-64 overflow-hidden rounded-lg border bg-gray-50">
-                  <video src={videoUrl} controls className="h-full w-full" />
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleRegenVideo}
-                  disabled={videoLoading}
-                  className="w-full"
-                >
-                  {videoLoading ? 'Regenerating...' : 'Regenerate'}
-                </Button>
-                <a
-                  href={videoUrl}
-                  download="campaign-video.mp4"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  <Button variant="outline" size="sm" className="w-full">
-                    Download
-                  </Button>
-                </a>
-              </div>
-            )}
-          </div>
-
-          {/* Bottom actions */}
-          <div className="mt-8 space-y-2 border-t pt-4">
-            <Button onClick={saveCurrentToArchive} variant="outline" className="w-full">
+          <div className="space-y-2">
+            <Button onClick={saveCurrentToArchive} className="w-full">
               Save to Archive
             </Button>
-            <Button onClick={handleRegenerateAll} disabled={isLoading} className="w-full">
+            <Button
+              onClick={handleRegenerateAll}
+              disabled={isLoading}
+              variant="outline"
+              className="w-full"
+            >
               Regenerate All
             </Button>
             <Button
@@ -620,81 +693,87 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             Previous Outputs
           </p>
           <div className="space-y-2">
-            {archives.map((archive) => (
-              <div key={archive.id} className="rounded-lg border border-gray-200 bg-gray-50">
-                <div className="flex items-center gap-3 p-3">
-                  {archive.imageUrl && (
-                    <img
-                      src={archive.imageUrl}
-                      alt="Archive"
-                      className="h-10 w-10 flex-shrink-0 rounded object-cover"
-                    />
-                  )}
-                  <div className="min-w-0 flex-1 text-xs text-gray-500">
-                    {archive.captionResult ? (
-                      <p className="truncate">{archive.captionResult.caption}</p>
-                    ) : (
-                      <p className="text-gray-400">
-                        {[archive.imageUrl && 'Image', archive.videoUrl && 'Video']
-                          .filter(Boolean)
-                          .join(' + ')}
-                      </p>
-                    )}
-                    {archive.videoUrl && archive.captionResult && (
-                      <span className="text-blue-400"> · video</span>
-                    )}
-                  </div>
-                  <button
-                    onClick={() =>
-                      setExpandedArchiveId(expandedArchiveId === archive.id ? null : archive.id)
-                    }
-                    className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-                  >
-                    {expandedArchiveId === archive.id ? (
-                      <ChevronUp size={14} />
-                    ) : (
-                      <ChevronDown size={14} />
-                    )}
-                  </button>
-                  <button
-                    onClick={() => deleteArchive(archive.id)}
-                    className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                  >
-                    <X size={14} />
-                  </button>
-                </div>
+            {archives.map((archive) => {
+              const date = new Date(archive.id)
+              const timeStr = date.toLocaleTimeString('en-US', {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: true,
+              })
+              const outputTypes = [
+                archive.imageUrl && 'Image',
+                archive.captionResult && 'Caption',
+                archive.videoUrl && 'Video',
+              ]
+                .filter(Boolean)
+                .join(' + ')
 
-                {expandedArchiveId === archive.id && (
-                  <div className="flex flex-wrap gap-3 border-t border-gray-200 p-3">
+              return (
+                <div key={archive.id} className="rounded-lg border border-gray-200 bg-gray-50">
+                  <div className="flex items-center gap-3 p-3">
                     {archive.imageUrl && (
                       <img
                         src={archive.imageUrl}
-                        alt="Archived image"
-                        className="h-40 rounded border object-cover"
+                        alt="Archive"
+                        className="h-10 w-10 flex-shrink-0 rounded object-cover"
                       />
                     )}
-                    {archive.captionResult && (
-                      <div className="min-w-48 flex-1 text-xs text-gray-700">
-                        <p className="mb-2 leading-relaxed">{archive.captionResult.caption}</p>
-                        <div className="flex flex-wrap gap-1">
-                          {archive.captionResult.hashtags.map((tag) => (
-                            <span
-                              key={tag}
-                              className="rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-500"
-                            >
-                              #{tag.replace(/^#/, '')}
-                            </span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {archive.videoUrl && (
-                      <video src={archive.videoUrl} controls className="h-40 rounded border" />
-                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="text-xs font-medium text-gray-700">{outputTypes}</p>
+                      <p className="text-xs text-gray-400">{timeStr}</p>
+                    </div>
+                    <button
+                      onClick={() =>
+                        setExpandedArchiveId(expandedArchiveId === archive.id ? null : archive.id)
+                      }
+                      className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                    >
+                      {expandedArchiveId === archive.id ? (
+                        <ChevronUp size={14} />
+                      ) : (
+                        <ChevronDown size={14} />
+                      )}
+                    </button>
+                    <button
+                      onClick={() => deleteArchive(archive.id)}
+                      className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
+                    >
+                      <X size={14} />
+                    </button>
                   </div>
-                )}
-              </div>
-            ))}
+
+                  {expandedArchiveId === archive.id && (
+                    <div className="flex flex-wrap gap-3 border-t border-gray-200 p-3">
+                      {archive.imageUrl && (
+                        <img
+                          src={archive.imageUrl}
+                          alt="Archived image"
+                          className="h-40 rounded border object-cover"
+                        />
+                      )}
+                      {archive.captionResult && (
+                        <div className="min-w-48 flex-1 text-xs text-gray-700">
+                          <p className="mb-2 leading-relaxed">{archive.captionResult.caption}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {archive.captionResult.hashtags.map((tag) => (
+                              <span
+                                key={tag}
+                                className="rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-500"
+                              >
+                                #{tag.replace(/^#/, '')}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {archive.videoUrl && (
+                        <video src={archive.videoUrl} controls className="h-40 rounded border" />
+                      )}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </Card>
       )}
