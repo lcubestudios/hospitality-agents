@@ -9,8 +9,12 @@ import { Label } from '@/components/ui/label'
 
 export default function LoginPage() {
   const router = useRouter()
-  const [brandName, setBrandName] = useState('')
+  const [brandName, setBrandName] = useState(() => {
+    if (typeof window === 'undefined') return ''
+    return localStorage.getItem('remembered_brand_name') || ''
+  })
   const [password, setPassword] = useState('')
+  const [rememberMe, setRememberMe] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,6 +24,12 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
+      if (rememberMe) {
+        localStorage.setItem('remembered_brand_name', brandName)
+      } else {
+        localStorage.removeItem('remembered_brand_name')
+      }
+
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -36,7 +46,6 @@ export default function LoginPage() {
         return
       }
 
-      // Redirect to home on success
       router.push('/')
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
@@ -74,6 +83,19 @@ export default function LoginPage() {
               required
               className="mt-1"
             />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input
+              id="remember-me"
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            <Label htmlFor="remember-me" className="mb-0 text-sm font-normal text-gray-600">
+              Remember me
+            </Label>
           </div>
 
           {error && <p className="text-sm text-red-600">{error}</p>}

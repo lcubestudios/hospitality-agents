@@ -12,15 +12,14 @@ interface SideNavProps {
   onTabChange: (tab: Tab) => void
 }
 
-const NAV_ITEMS: { tab: Tab; label: string; icon: string }[] = [
-  { tab: 'brand', label: 'Brand Info', icon: '◈' },
-  { tab: 'campaign', label: 'Campaign', icon: '⊕' },
-  { tab: 'archives', label: 'Archives', icon: '▤' },
+const NAV_ITEMS: { tab: Tab; label: string }[] = [
+  { tab: 'brand', label: 'Brand Info' },
+  { tab: 'campaign', label: 'Campaign' },
+  { tab: 'archives', label: 'Archives' },
 ]
 
 export function SideNav({ brandId, brandName, activeTab, onTabChange }: SideNavProps) {
   const router = useRouter()
-  const [isCollapsed, setIsCollapsed] = useState(true)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [logoutLoading, setLogoutLoading] = useState(false)
@@ -53,57 +52,38 @@ export function SideNav({ brandId, brandName, activeTab, onTabChange }: SideNavP
   }
 
   return (
-    <nav
-      className={`fixed top-0 left-0 flex h-screen flex-col border-r border-gray-200 bg-gray-50 transition-all duration-300 ${
-        isCollapsed ? 'w-16 p-2' : 'w-56 p-4'
-      }`}
-    >
-      {/* Toggle */}
-      <button
-        onClick={() => setIsCollapsed(!isCollapsed)}
-        className="mb-4 flex h-8 w-8 items-center justify-center rounded hover:bg-gray-200"
-        title={isCollapsed ? 'Expand' : 'Collapse'}
-      >
-        <span className="text-lg">{isCollapsed ? '→' : '←'}</span>
-      </button>
-
+    <nav className="fixed top-0 left-0 flex h-screen w-48 flex-col border-r border-gray-200 bg-gray-50 p-4">
       {/* Tab nav items */}
       <div className="flex-1 space-y-1">
-        {NAV_ITEMS.map(({ tab, label, icon }) => (
+        {NAV_ITEMS.map(({ tab, label }) => (
           <button
             key={tab}
             onClick={() => onTabChange(tab)}
-            title={isCollapsed ? label : undefined}
             className={[
-              'flex w-full items-center rounded px-2 py-2 text-sm transition-colors',
-              isCollapsed ? 'justify-center' : 'gap-3',
+              'flex w-full items-center rounded px-3 py-2 text-sm font-medium transition-colors',
               activeTab === tab
                 ? 'bg-gray-900 text-white'
                 : 'text-gray-600 hover:bg-gray-200 hover:text-gray-900',
             ].join(' ')}
           >
-            <span className="text-base leading-none">{icon}</span>
-            {!isCollapsed && <span className="font-medium">{label}</span>}
+            {label}
           </button>
         ))}
       </div>
 
       {/* Account actions */}
-      <div className={`space-y-2 border-t border-gray-200 pt-4 ${isCollapsed ? 'space-y-1' : ''}`}>
+      <div className="space-y-2 border-t border-gray-200 pt-4">
         <Button
           onClick={() => setShowDeleteConfirm(true)}
           variant="outline"
           disabled={deleting}
-          size={isCollapsed ? 'sm' : 'default'}
-          className={`${
-            isCollapsed ? 'h-8 w-8 p-0' : 'w-full justify-start'
-          } text-red-600 hover:bg-red-50 hover:text-red-700`}
+          className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700"
           title="Delete Account"
         >
-          {isCollapsed ? '×' : 'Delete Account'}
+          Delete Account
         </Button>
 
-        {!isCollapsed && showDeleteConfirm && (
+        {showDeleteConfirm && (
           <div className="rounded-md border border-red-200 bg-red-50 p-3">
             <p className="mb-2 text-xs font-medium text-red-900">
               Delete &quot;{brandName}&quot;? Cannot undo.
@@ -135,11 +115,10 @@ export function SideNav({ brandId, brandName, activeTab, onTabChange }: SideNavP
           onClick={handleLogout}
           disabled={logoutLoading}
           variant="outline"
-          size={isCollapsed ? 'sm' : 'default'}
-          className={isCollapsed ? 'h-8 w-8 p-0' : 'w-full justify-start'}
+          className="w-full justify-start"
           title="Log Out"
         >
-          {isCollapsed ? '⊙' : logoutLoading ? 'Logging out...' : 'Log Out'}
+          {logoutLoading ? 'Logging out...' : 'Log Out'}
         </Button>
       </div>
     </nav>

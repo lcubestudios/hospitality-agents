@@ -27,13 +27,15 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
   const [isEditing, setIsEditing] = useState(false)
   const [nameVal, setNameVal] = useState(name)
   const [descVal, setDescVal] = useState(description)
-  const [voicePreset, setVoicePreset] = useState(
-    VOICE_PRESETS.find((p) => brand_voice?.includes(p)) || '',
-  )
-  const [voiceCustom, setVoiceCustom] = useState(
-    brand_voice?.replace(VOICE_PRESETS.find((p) => brand_voice?.includes(p)) || '', '').trim() ||
-      '',
-  )
+
+  const foundPreset = VOICE_PRESETS.find((p) => brand_voice?.includes(p)) || ''
+  const extractCustom = (voice: string, preset: string) => {
+    if (!preset) return voice?.trim() || ''
+    return voice.replace(preset, '').replace(/^\. /, '').trim()
+  }
+
+  const [voicePreset, setVoicePreset] = useState(foundPreset)
+  const [voiceCustom, setVoiceCustom] = useState(extractCustom(brand_voice, foundPreset))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -67,11 +69,8 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
   function handleCancel() {
     setNameVal(name)
     setDescVal(description)
-    setVoicePreset(VOICE_PRESETS.find((p) => brand_voice?.includes(p)) || '')
-    setVoiceCustom(
-      brand_voice?.replace(VOICE_PRESETS.find((p) => brand_voice?.includes(p)) || '', '').trim() ||
-        '',
-    )
+    setVoicePreset(foundPreset)
+    setVoiceCustom(extractCustom(brand_voice, foundPreset))
     setError('')
     setIsEditing(false)
   }

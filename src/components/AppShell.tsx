@@ -61,7 +61,7 @@ export function AppShell({ brand }: AppShellProps) {
         activeTab={activeTab}
         onTabChange={setActiveTab}
       />
-      <main className="ml-16 min-h-screen bg-gray-100 p-4">
+      <main className="ml-48 min-h-screen bg-gray-100 p-4">
         <div className="mx-auto max-w-2xl space-y-6">
           <h1 className="text-2xl font-bold text-gray-800">{tabHeadings[activeTab]}</h1>
 
