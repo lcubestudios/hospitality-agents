@@ -47,6 +47,25 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
     if (expandedId === id) setExpandedId(null)
   }
 
+  const MAX = 5
+  const count = archives.length
+
+  const counterBar = (
+    <div className="flex items-center justify-between">
+      <p className="text-sm text-gray-500">
+        <span
+          className={count >= MAX ? 'font-semibold text-amber-600' : 'font-semibold text-gray-800'}
+        >
+          {count}/{MAX}
+        </span>{' '}
+        saved
+        {count >= MAX && (
+          <span className="ml-1 text-amber-600">— delete one to save a new campaign</span>
+        )}
+      </p>
+    </div>
+  )
+
   if (loading) {
     return (
       <Card className="p-6">
@@ -57,16 +76,20 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
 
   if (archives.length === 0) {
     return (
-      <Card className="p-6">
-        <p className="text-sm text-gray-400">
-          No archives yet. Generate a campaign and save it to see it here.
-        </p>
-      </Card>
+      <div className="space-y-3">
+        {counterBar}
+        <Card className="p-6">
+          <p className="text-sm text-gray-400">
+            No archives yet. Generate a campaign and save it to see it here.
+          </p>
+        </Card>
+      </div>
     )
   }
 
   return (
     <div className="space-y-3">
+      {counterBar}
       {archives.map((archive) => {
         const isOpen = expandedId === archive.id
         const outputs = expandedOutputs[archive.id] ?? new Set()

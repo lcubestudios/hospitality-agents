@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -24,6 +25,7 @@ interface BrandPanelProps {
 }
 
 export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPanelProps) {
+  const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [nameVal, setNameVal] = useState(name)
   const [descVal, setDescVal] = useState(description)
@@ -59,6 +61,7 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
       }
 
       setIsEditing(false)
+      router.refresh()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error')
     } finally {
