@@ -1,14 +1,22 @@
 'use client'
 
 import { useRef, useState } from 'react'
-import { CheckCircle, ChevronDown, ChevronUp, Circle, Loader2, X } from 'lucide-react'
+import { CheckCircle, ChevronDown, ChevronUp, Circle, Info, Loader2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 import type { DirectorBrief } from '@/app/api/campaigns/[id]/generate/route'
 
 const MAX_PHOTOS = 1
-const MAX_ARCHIVES = 2
 
 type Stage = 'idle' | 'generating' | 'captioning' | 'uploading' | 'videoing' | 'done' | 'error'
 
@@ -29,16 +37,50 @@ interface GenerationOptions {
   video: boolean
 }
 
-type ExpandedOutput = 'image' | 'caption' | 'video'
+type ExpandedOutput = 'generating' | 'captioning' | 'videoing'
 
-interface OutputArchive {
-  id: number
-  imageUrl?: string
-  captionResult?: CaptionResult
-  videoUrl?: string
+interface Tooltip {
+  label: string
+  tip: string
 }
 
-export function CampaignCreator({ brandId }: { brandId: string }) {
+function TooltipIcon({ tip }: { tip: string }) {
+  return (
+    <div className="group relative inline-flex items-center">
+      <Info size={13} className="cursor-help text-gray-400 hover:text-gray-600" />
+      <div className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-2 w-52 -translate-x-1/2 rounded bg-gray-800 px-2.5 py-1.5 text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100">
+        {tip}
+      </div>
+    </div>
+  )
+}
+
+const ACTION_TOOLTIPS: Tooltip[] = [
+  {
+    label: 'Save to Archive',
+    tip: 'Save this campaign to your Archive for later reference. You will be prompted for a name.',
+  },
+  {
+    label: 'Download All',
+    tip: 'Download image, video, and caption as separate files in one click.',
+  },
+  {
+    label: 'Regenerate All',
+    tip: 'Keep the same photo and topic but regenerate all selected outputs.',
+  },
+  {
+    label: 'New Campaign',
+    tip: 'Start fresh with a new photo and topic. Current outputs will be cleared.',
+  },
+]
+
+export function CampaignCreator({
+  brandId,
+  onArchiveSaved,
+}: {
+  brandId: string
+  onArchiveSaved?: () => void
+}) {
   const [stage, setStage] = useState<Stage>('idle')
   const [postTopic, setPostTopic] = useState('')
   const [photos, setPhotos] = useState<PhotoSlot[]>([])
@@ -57,10 +99,15 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     caption: false,
     video: false,
   })
-  const [archives, setArchives] = useState<OutputArchive[]>([])
-  const [expandedArchiveId, setExpandedArchiveId] = useState<number | null>(null)
   const [directorBrief, setDirectorBrief] = useState<DirectorBrief | null>(null)
   const [expandedOutputs, setExpandedOutputs] = useState<Set<ExpandedOutput>>(new Set())
+
+  // Save modal
+  const [saveModalOpen, setSaveModalOpen] = useState(false)
+  const [archiveName, setArchiveName] = useState('')
+  const [archiveDescription, setArchiveDescription] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState('')
 
   const cardRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -74,26 +121,44 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   const hasOutputs = !!(resultUrl || captionResult || videoUrl)
   const isRegen = !!campaignId
 
-  // Progress steps — uploading only shown on first generate
-  const progressSteps: { key: Stage; label: string }[] = [
-    ...(!isRegen ? [{ key: 'uploading' as Stage, label: 'Uploading photos' }] : []),
-    ...(generationOptions.image ? [{ key: 'generating' as Stage, label: 'Generating image' }] : []),
-    ...(generationOptions.caption
-      ? [{ key: 'captioning' as Stage, label: 'Writing caption' }]
+  const progressSteps: { key: Stage; activeLabel: string; doneLabel: string }[] = [
+    ...(!isRegen
+      ? [
+          {
+            key: 'uploading' as Stage,
+            activeLabel: 'Uploading photos',
+            doneLabel: 'Photos uploaded',
+          },
+        ]
       : []),
-    ...(generationOptions.video ? [{ key: 'videoing' as Stage, label: 'Generating video' }] : []),
+    ...(generationOptions.image
+      ? [
+          {
+            key: 'generating' as Stage,
+            activeLabel: 'Generating image',
+            doneLabel: 'View Generated Image',
+          },
+        ]
+      : []),
+    ...(generationOptions.caption
+      ? [
+          {
+            key: 'captioning' as Stage,
+            activeLabel: 'Writing caption',
+            doneLabel: 'View Generated Caption',
+          },
+        ]
+      : []),
+    ...(generationOptions.video
+      ? [
+          {
+            key: 'videoing' as Stage,
+            activeLabel: 'Generating video',
+            doneLabel: 'View Generated Video',
+          },
+        ]
+      : []),
   ]
-
-  function saveCurrentToArchive() {
-    if (!resultUrl && !captionResult && !videoUrl) return
-    const entry: OutputArchive = {
-      id: Date.now(),
-      imageUrl: resultUrl ?? undefined,
-      captionResult: captionResult ?? undefined,
-      videoUrl: videoUrl ?? undefined,
-    }
-    setArchives((prev) => [entry, ...prev].slice(0, MAX_ARCHIVES))
-  }
 
   function handleAddPhotos(e: React.ChangeEvent<HTMLInputElement>) {
     const picked = Array.from(e.target.files ?? [])
@@ -126,7 +191,6 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     setPhotos((prev) => prev.filter((_, i) => i !== index))
   }
 
-  // Core generation steps — shared by initial generate and regen
   async function runGenerationSteps(cId: string, urls: string[]) {
     let freshImageUrl: string | null = null
     let freshBrief: DirectorBrief | null = null
@@ -163,9 +227,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          // pass enhanced image if generated this run, else fall back to original upload
           image_url: freshImageUrl ?? resultUrl ?? urls[0],
-          // pass cached brief so video route skips Vision
           director_brief: freshBrief ?? directorBrief ?? null,
         }),
       })
@@ -240,7 +302,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     }
   }
 
-  function handleGenerateWithDifferentInput() {
+  function handleNewCampaign() {
     setStage('idle')
     setCampaignId(null)
     setUploadedUrls([])
@@ -302,7 +364,6 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          caption: captionResult?.caption ?? '',
           image_url: resultUrl ?? uploadedUrls[0],
         }),
       })
@@ -324,9 +385,71 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     setTimeout(() => setCopied(false), 2000)
   }
 
-  function deleteArchive(id: number) {
-    setArchives((prev) => prev.filter((a) => a.id !== id))
-    if (expandedArchiveId === id) setExpandedArchiveId(null)
+  // NOTE: caption download as .txt may be deprecated in a future iteration
+  function handleDownloadAll() {
+    if (resultUrl) {
+      const a = document.createElement('a')
+      a.href = resultUrl
+      a.download = 'enhanced-product.jpg'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
+    if (videoUrl) {
+      const a = document.createElement('a')
+      a.href = videoUrl
+      a.download = 'campaign-video.mp4'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+    }
+    if (captionResult) {
+      const text = `${captionResult.caption}\n\n${captionResult.hashtags.map((h) => `#${h.replace(/^#/, '')}`).join(' ')}`
+      const blob = new Blob([text], { type: 'text/plain' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'caption.txt'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    }
+  }
+
+  async function handleSaveToArchive() {
+    if (!archiveName.trim()) {
+      setSaveError('Name is required.')
+      return
+    }
+    setSaving(true)
+    setSaveError('')
+    try {
+      const res = await fetch('/api/archives', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: archiveName.trim(),
+          description: archiveDescription.trim() || null,
+          image_url: resultUrl ?? null,
+          video_url: videoUrl ?? null,
+          caption: captionResult?.caption ?? null,
+          hashtags: captionResult?.hashtags ?? null,
+        }),
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.message || 'Failed to save')
+      }
+      setSaveModalOpen(false)
+      setArchiveName('')
+      setArchiveDescription('')
+      onArchiveSaved?.()
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setSaving(false)
+    }
   }
 
   function loadTestData() {
@@ -355,8 +478,6 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     <div className="space-y-6">
       {/* Input card */}
       <Card className="p-6" ref={cardRef}>
-        <h2 className="mb-4 text-xl font-bold">Campaign Creator</h2>
-
         <div className="space-y-4">
           {/* Topic */}
           <div>
@@ -372,7 +493,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             />
           </div>
 
-          {/* Photos & Videos */}
+          {/* Photos */}
           {(photosRequired || photos.length > 0) && (
             <div className={inputsLocked ? 'opacity-60' : ''}>
               <div className="mb-2 flex items-center justify-between">
@@ -472,9 +593,9 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
           {/* Progress/Output Accordion */}
           {(isLoading || hasOutputs) && progressSteps.length > 0 && (
             <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-              {progressSteps.map(({ key, label }, i) => {
+              {progressSteps.map(({ key, activeLabel, doneLabel }, i) => {
                 const stepIndex = progressSteps.findIndex((s) => s.key === stage)
-                const thisIndex = progressSteps.findIndex((s) => s.key === key)
+                const thisIndex = i
                 const isDone = thisIndex < stepIndex || (stage === 'done' && thisIndex <= stepIndex)
                 const isActive = key === stage && isLoading
                 const isExpanded = expandedOutputs.has(key as ExpandedOutput)
@@ -577,6 +698,8 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                   )
                 }
 
+                const displayLabel = isDone && hasOutput ? doneLabel : activeLabel
+
                 return (
                   <div key={key}>
                     <button
@@ -607,14 +730,16 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                       </span>
                       <span
                         className={
-                          isDone
-                            ? 'text-gray-600'
-                            : isActive
-                              ? 'font-medium text-gray-800'
-                              : 'text-gray-400'
+                          isDone && hasOutput
+                            ? 'font-semibold text-gray-800'
+                            : isDone
+                              ? 'text-gray-500'
+                              : isActive
+                                ? 'font-medium text-gray-800'
+                                : 'text-gray-400'
                         }
                       >
-                        {label}
+                        {displayLabel}
                       </span>
                       {hasOutput && (
                         <span className="ml-auto flex-shrink-0">
@@ -659,124 +784,96 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
         </div>
       </Card>
 
-      {/* Action buttons — shown after generation */}
+      {/* Action buttons */}
       {hasOutputs && (
         <Card className="p-6">
-          <div className="space-y-2">
-            <Button onClick={saveCurrentToArchive} className="w-full">
-              Save to Archive
-            </Button>
-            <Button
-              onClick={handleRegenerateAll}
-              disabled={isLoading}
-              variant="outline"
-              className="w-full"
-            >
-              Regenerate All
-            </Button>
-            <Button
-              variant="outline"
-              onClick={handleGenerateWithDifferentInput}
-              disabled={isLoading}
-              className="w-full"
-            >
-              Generate with Different Input
-            </Button>
-          </div>
-        </Card>
-      )}
-
-      {/* Archives — own card, always visible when entries exist */}
-      {archives.length > 0 && (
-        <Card className="p-6">
-          <p className="mb-3 text-xs font-medium tracking-wide text-gray-400 uppercase">
-            Previous Outputs
+          <p className="mb-3 text-xs font-medium tracking-wide text-gray-500 uppercase">
+            Next Actions
           </p>
           <div className="space-y-2">
-            {archives.map((archive) => {
-              const date = new Date(archive.id)
-              const timeStr = date.toLocaleTimeString('en-US', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: true,
-              })
-              const outputTypes = [
-                archive.imageUrl && 'Image',
-                archive.captionResult && 'Caption',
-                archive.videoUrl && 'Video',
-              ]
-                .filter(Boolean)
-                .join(' + ')
+            {ACTION_TOOLTIPS.map(({ label, tip }) => {
+              let onClick: () => void
+              let disabled = false
+              let primary = false
+
+              if (label === 'Save to Archive') {
+                onClick = () => {
+                  setSaveError('')
+                  setSaveModalOpen(true)
+                }
+                primary = true
+              } else if (label === 'Download All') {
+                onClick = handleDownloadAll
+              } else if (label === 'Regenerate All') {
+                onClick = handleRegenerateAll
+                disabled = isLoading
+              } else {
+                onClick = handleNewCampaign
+                disabled = isLoading
+              }
 
               return (
-                <div key={archive.id} className="rounded-lg border border-gray-200 bg-gray-50">
-                  <div className="flex items-center gap-3 p-3">
-                    {archive.imageUrl && (
-                      <img
-                        src={archive.imageUrl}
-                        alt="Archive"
-                        className="h-10 w-10 flex-shrink-0 rounded object-cover"
-                      />
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-medium text-gray-700">{outputTypes}</p>
-                      <p className="text-xs text-gray-400">{timeStr}</p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        setExpandedArchiveId(expandedArchiveId === archive.id ? null : archive.id)
-                      }
-                      className="rounded p-1 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
-                    >
-                      {expandedArchiveId === archive.id ? (
-                        <ChevronUp size={14} />
-                      ) : (
-                        <ChevronDown size={14} />
-                      )}
-                    </button>
-                    <button
-                      onClick={() => deleteArchive(archive.id)}
-                      className="rounded p-1 text-gray-400 hover:bg-red-50 hover:text-red-500"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-
-                  {expandedArchiveId === archive.id && (
-                    <div className="flex flex-wrap gap-3 border-t border-gray-200 p-3">
-                      {archive.imageUrl && (
-                        <img
-                          src={archive.imageUrl}
-                          alt="Archived image"
-                          className="h-40 rounded border object-cover"
-                        />
-                      )}
-                      {archive.captionResult && (
-                        <div className="min-w-48 flex-1 text-xs text-gray-700">
-                          <p className="mb-2 leading-relaxed">{archive.captionResult.caption}</p>
-                          <div className="flex flex-wrap gap-1">
-                            {archive.captionResult.hashtags.map((tag) => (
-                              <span
-                                key={tag}
-                                className="rounded-full bg-blue-50 px-1.5 py-0.5 text-blue-500"
-                              >
-                                #{tag.replace(/^#/, '')}
-                              </span>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      {archive.videoUrl && (
-                        <video src={archive.videoUrl} controls className="h-40 rounded border" />
-                      )}
-                    </div>
-                  )}
+                <div key={label} className="flex items-center gap-2">
+                  <Button
+                    onClick={onClick}
+                    disabled={disabled}
+                    variant={primary ? 'default' : 'outline'}
+                    className="flex-1"
+                  >
+                    {label}
+                  </Button>
+                  <TooltipIcon tip={tip} />
                 </div>
               )
             })}
           </div>
         </Card>
       )}
+
+      {/* Save to Archive modal */}
+      <Dialog
+        open={saveModalOpen}
+        onOpenChange={(open) => {
+          if (!saving) setSaveModalOpen(open)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save to Archive</DialogTitle>
+            <DialogDescription>
+              Give this campaign a name so you can find it later in your Archives.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label htmlFor="archive_name">Name *</Label>
+              <Input
+                id="archive_name"
+                value={archiveName}
+                onChange={(e) => setArchiveName(e.target.value)}
+                placeholder="e.g. Truffle pizza launch"
+                className="mt-1"
+              />
+            </div>
+            <div>
+              <Label htmlFor="archive_description">Description</Label>
+              <Input
+                id="archive_description"
+                value={archiveDescription}
+                onChange={(e) => setArchiveDescription(e.target.value)}
+                placeholder="e.g. April campaign, warm tones"
+                className="mt-1"
+              />
+            </div>
+            {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+          </div>
+          <DialogFooter>
+            <Button onClick={handleSaveToArchive} disabled={saving || !archiveName.trim()}>
+              {saving ? 'Saving...' : 'Save'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
