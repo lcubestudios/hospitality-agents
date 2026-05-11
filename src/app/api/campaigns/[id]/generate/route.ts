@@ -7,6 +7,9 @@ const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
 export interface DirectorBrief {
   hero_label: string
+  camera_angle: string
+  background_subject: string
+  background_atmosphere: string
   sacred_hierarchy: string
   creative_direction: {
     lighting_sculpting: string
@@ -49,54 +52,50 @@ function buildFallbackBrief(postTopic: string): DirectorBrief {
   const subject = postTopic || 'food subject'
   return {
     hero_label: subject,
+    camera_angle: 'Three-quarter overhead, classic food editorial',
+    background_subject: 'surface or environment',
+    background_atmosphere: 'Soft diffused side wash; no hot spots or halos; subtle surface grain.',
     sacred_hierarchy:
-      'Preserve all food geometry, plating structure, and environmental background exactly as photographed.',
+      'Preserve all food geometry, plating structure, and background subject identity.',
     creative_direction: {
-      lighting_sculpting:
-        'Warm directional side light from camera left at 45 degrees, soft shadow pooling on the right side of the plate',
-      lens_intent: '85mm equivalent at f/2.8, subject tack-sharp, background falls into soft focus',
-      texture_notes:
-        'Render surface textures with natural tactile quality, realistic specular highlights, and visible material grain',
-      color_grade:
-        'Warm editorial grade with amber highlights, softened brown shadows, and elevated micro-contrast',
+      lighting_sculpting: 'Rembrandt setup, 45-degree camera-left, soft shadow right',
+      lens_intent: '85mm f/1.8, subject sharp, background aggressive bokeh',
+      texture_notes: 'Specular highlights, surface grain, tactile material quality',
+      color_grade: 'Warm editorial — amber highlights, brown shadows, elevated micro-contrast',
     },
     kinetic_script: {
-      camera_vector: 'Slow horizontal trucking shot, 3-inch slide to the right at constant pace',
-      parallax_priority:
-        'Foreground subject moves faster than background, creating natural depth separation',
+      camera_vector: 'Slow circular orbit, 90-degree arc around subject, constant pace',
+      parallax_priority: 'Foreground faster than background, natural depth separation',
       secondary_motion: 'none',
     },
-    expendable_elements: 'Current lighting atmosphere and tonal treatment',
-    image_brief: `Using the ${subject} as hero, execute a high-end commercial reshoot. Keep all food geometry and plating identical. Discard current lighting and apply warm directional side light from camera left. Render with editorial color grade and professional depth of field. Do not add any new objects, dishes, or scene elements.`,
-    video_brief: `Animate the ${subject} with a slow horizontal trucking shot moving 3 inches to the right. Keep all food geometry and plating identical. Use natural parallax to reveal scene depth. Camera movement should feel like a high-end commercial. Do not add any new objects, dishes, or scene elements.`,
+    expendable_elements: 'Lighting atmosphere and tonal treatment only.',
+    image_brief: `Execute a high-end commercial reshoot of the ${subject}. Preserve all food geometry and plating. Override lighting with dramatic side-lit setup. Apply editorial color grade and professional depth of field.`,
+    video_brief: `Animate the ${subject} with a lateral trucking shot. Preserve all food geometry and plating. Use natural parallax to reveal scene depth. Physical camera movement only.`,
   }
 }
 
 function buildVisionPrompt({
   brandName,
-  brandDesc,
   brandVoice,
   postTopic,
 }: {
   brandName: string
-  brandDesc: string
   brandVoice: string
   postTopic: string
 }): string {
-  return `You are a commercial food cinematography director analyzing an uploaded food or drink image.
+  return `You are a commercial food director analyzing a food or drink photo for a professional campaign reshoot.
 
-This content will be published on Instagram. Your job is NOT to describe the photo literally. Extract what the image should BECOME — a high-end commercial reshoot that keeps the food identical but elevates everything else.
-
-Brand context (use to align color grade and mood):
 Brand: ${brandName || 'not specified'}
-Description: ${brandDesc || 'not specified'}
 Voice: ${brandVoice || 'not specified'}
 Post topic: ${postTopic || 'not specified'}
 
-Return ONLY valid JSON in this exact shape:
+Return ONLY valid JSON:
 
 {
   "hero_label": "",
+  "camera_angle": "",
+  "background_subject": "",
+  "background_atmosphere": "",
   "sacred_hierarchy": "",
   "creative_direction": {
     "lighting_sculpting": "",
@@ -116,31 +115,35 @@ Return ONLY valid JSON in this exact shape:
 
 Rules:
 
-hero_label: 1-3 word dish/drink name only (e.g. "carnitas tacos", "espresso martini")
+hero_label: 1-3 word dish/drink name. e.g. "carnitas tacos"
 
-sacred_hierarchy: Describe exactly what must not change — food geometry, ingredient placement, plating structure, visible surface and environmental background. Lighting and atmosphere are NOT sacred.
+camera_angle: Describe the editorial perspective of this photo as you see it. e.g. "Three-quarter overhead, slight tilt from camera-left" or "Low elevation, slight table-height angle from camera-right". Describe what is in the input — do not choose from a fixed list, do not invent a new angle.
 
-creative_direction.lighting_sculpting: Specify source angle (e.g. "45 degrees camera-left"), quality (hard/soft/diffused), and shadow placement. Must be directional — never flat or overhead.
+background_subject: 2-5 words identifying the physical background. e.g. "dark wooden table", "marble bar top", "outdoor terrace". What it IS — no quality adjectives.
 
-creative_direction.lens_intent: Specify focal length equivalent, f-stop, and depth behavior (e.g. "85mm at f/2.8, subject sharp, background falls into gentle focus").
+background_atmosphere: Technical instruction for background re-rendering. Use precise light quality terms: color temperature, diffusion type, shadow depth. e.g. "Soft 2700K side wash from camera-left; no hot spots or halos; subtle surface grain." Avoid vague words — no glow, warm, rich, dramatic.
 
-creative_direction.texture_notes: Describe tactile rendering priorities using sensory language — moisture, translucence, oil sheen, crispness, char, condensation, grain, surface irregularities. No generic quality language.
+sacred_hierarchy: Food geometry, ingredient placement, plating structure, and background subject identity must not change.
 
-creative_direction.color_grade: Name a specific editorial grade aligned with the brand voice. Include highlight temperature, shadow treatment, and contrast character (e.g. "warm Bangkok street-food — amber highlights, softened brown shadows, elevated micro-contrast").
+creative_direction.lighting_sculpting: Describe the EXISTING lighting in this photo precisely. Type of light, direction, quality. e.g. "Natural diffused window light from camera-right, soft shadows, slight underexposure." This will be elevated, not replaced.
 
-kinetic_script.camera_vector: Specify a cinematography movement type and magnitude. Allowed: trucking shot, dolly, orbital arc, tilt-up, parallax drift. Never zoom or smooth animation.
+creative_direction.lens_intent: Focal length, f-stop, depth. e.g. "85mm f/1.8, subject sharp, background smooth bokeh."
 
-kinetic_script.parallax_priority: Describe the foreground/background depth relationship during camera movement. Background must remain structurally recognizable if visible in original.
+creative_direction.texture_notes: Sensory shorthand for surface elevation. e.g. "Specular highlights on glaze, condensation on glass, organic surface grain."
 
-kinetic_script.secondary_motion: Identify natural motion opportunities physically implied by the image — steam, condensation, garnish flutter. If none are clearly visible, write exactly: none
+creative_direction.color_grade: Named editorial grade aligned with brand voice. e.g. "Warm Bangkok street-food — amber highlights, brown shadows, elevated micro-contrast." True-to-life, not oversaturated.
 
-expendable_elements: Only lighting atmosphere and tonal treatment are expendable. Food geometry, plating, and environmental background are never expendable.
+kinetic_script.camera_vector: Choose the motion that best reveals this dish cinematically. Choose one: "Slow circular orbit, 90-degree arc around subject, constant pace" | "Slow dolly dip, camera descends 3 inches toward subject, reveals texture" | "Slow lateral truck, 3 inches right, constant pace". No zoom. No push-pull.
 
-image_brief: 3-5 sentences written as instructions to a commercial director for a still image shoot. Must explicitly permit creative freedom in lighting, atmosphere, depth, and color. Must explicitly forbid scene expansion or added objects. No kinematic language. IMPORTANT: Use plain declarative sentences only — no apostrophes, no double-quote characters.
+kinetic_script.parallax_priority: Depth relationship during motion. e.g. "Foreground faster than background, natural depth separation."
 
-video_brief: 3-5 sentences written as instructions to a commercial director for a video shoot. Must describe camera movement using physical cinematography terms. Must explicitly forbid scene expansion or added objects. No color grade language. IMPORTANT: Use plain declarative sentences only — no apostrophes, no double-quote characters.
+kinetic_script.secondary_motion: Physically implied motion only. e.g. "Rising steam from surface." If none visible: "none"
 
-Do NOT: describe the image plainly, invent new food items or props, expand into a restaurant spread, mention AI, output markdown, output explanation.
+expendable_elements: "Lighting atmosphere and tonal treatment only."
+
+image_brief: 2-3 terse declarative sentences for a still image shoot. No apostrophes or double-quotes. No kinematic language.
+
+video_brief: 2-3 terse declarative sentences for a video shoot. Physical cinematography terms only. No color grade language. No apostrophes or double-quotes.
 
 Output ONLY valid JSON.`
 }
@@ -149,59 +152,36 @@ function buildGeminiPrompt({
   brief,
   subjectAnchor,
   brandName,
-  brandDesc,
   brandVoice,
   postTopic,
 }: {
   brief: DirectorBrief
   subjectAnchor: string
   brandName: string
-  brandDesc: string
   brandVoice: string
   postTopic: string
 }): string {
-  return `${brief.image_brief}
+  return `[PRODUCTION TIER]
+Camera: Phase One IQ4 150MP or Hasselblad H6D. Medium format rendering — extreme detail, creamy tonal gradients, true color fidelity.
+Lens: ${brief.creative_direction.lens_intent}
 
-Sacred Hierarchy — do not change:
-Hero: ${subjectAnchor}
-${brief.sacred_hierarchy}
+[I. THE SCENE — FULL CREATIVE LATITUDE]
+The ${brief.background_subject} stays the same surface and material. Everything else is a creative decision.
+Lighting: Redesign the lighting completely. Current reads as ${brief.creative_direction.lighting_sculpting}. Build something intentional, dramatic, and editorial in its place. Strong key light. Deep shadow. Hard specular on the hero.
+Atmosphere: ${brief.background_atmosphere}
+Grade: ${brief.creative_direction.color_grade}
 
-Lighting:
-${brief.creative_direction.lighting_sculpting}
+[II. THE ANCHOR — LOCKED]
+Only these elements are fixed: ${subjectAnchor} geometry, ingredient placement, item count, and ${brief.background_subject} identity.
+Perspective family: ${brief.camera_angle}. Do not flip or radically recompose.
+Texture: ${brief.creative_direction.texture_notes}
 
-Lens:
-${brief.creative_direction.lens_intent}
+[III. GUARDRAILS]
+Fine dining editorial — Michelin campaign quality. Transformation must be visibly dramatic.
+Prohibited: Glowing halos. Neon effects. Artificial saturation boosts. Washed-out midtones. CGI or illustrated look.
 
-Texture Rendering:
-${brief.creative_direction.texture_notes}
-
-Color Grade:
-${brief.creative_direction.color_grade}
-
-Brand Context:
-Brand: ${brandName}
-Description: ${brandDesc}
-Voice: ${brandVoice}
-Post Topic: ${postTopic}
-
-Sacred Constraints:
-- Preserve exact food geometry, ingredient placement, and plating structure
-- Preserve the environmental background structure exactly as photographed
-- Do not add extra dishes, drinks, props, utensils, or background elements
-- Do not reinterpret the composition into a broader scene
-
-Creative Latitude:
-- Lighting atmosphere, direction, and quality may evolve
-- Tonal treatment and color grade may evolve
-- Depth treatment and lens character may evolve
-- Texture realism and surface dimensionality should be elevated
-
-Instagram Format:
-- Compose for portrait or square format
-- Clear subject hierarchy optimized for mobile-first viewing
-
-Negative Prompt:
-digital zoom, plastic appearance, CGI look, AI-generated appearance, watermarks, text overlays, logos, flat lighting, studio setup, waxy texture, oversharpening, stock photo aesthetic, fake restaurant spread, extra dishes, added drinks, invented props, artificial symmetry, perfectly centered composition`
+Brand: ${brandName} — ${brandVoice}
+Post: ${postTopic}`
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -234,12 +214,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : { data: null }
 
     const brandName = brand?.name ?? ''
-    const brandDesc = brand?.description ?? ''
     const brandVoice = brand?.brand_voice ?? ''
 
     // STEP 1: Vision analysis — Director's Brief
     let brief: DirectorBrief = buildFallbackBrief(postTopic)
     let uploadedBase64 = ''
+    let uploadedMimeType = 'image/jpeg'
 
     if (uploadedImageUrl) {
       try {
@@ -247,7 +227,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         if (imgRes.ok) {
           const imgBuffer = await imgRes.arrayBuffer()
           uploadedBase64 = Buffer.from(imgBuffer).toString('base64')
-          const mimeType = imgRes.headers.get('content-type')?.split(';')[0] || 'image/jpeg'
+          uploadedMimeType = imgRes.headers.get('content-type')?.split(';')[0] || 'image/jpeg'
 
           const client = new Anthropic()
           const visionRes = await client.messages.create({
@@ -261,7 +241,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     type: 'image',
                     source: {
                       type: 'base64',
-                      media_type: mimeType as
+                      media_type: uploadedMimeType as
                         | 'image/jpeg'
                         | 'image/png'
                         | 'image/gif'
@@ -271,7 +251,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                   },
                   {
                     type: 'text',
-                    text: buildVisionPrompt({ brandName, brandDesc, brandVoice, postTopic }),
+                    text: buildVisionPrompt({ brandName, brandVoice, postTopic }),
                   },
                 ],
               },
@@ -281,6 +261,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const raw = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
           const parsed = safeParseJson<DirectorBrief>(raw)
           if (parsed?.hero_label) brief = parsed
+          console.log('Vision analysis result:', JSON.stringify(brief, null, 2))
         }
       } catch (err) {
         console.warn('Vision analysis failed, using fallback brief:', err)
@@ -288,16 +269,20 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const subjectAnchor = postTopic.trim() || brief.hero_label
+    console.log('Subject anchor:', subjectAnchor)
+    console.log('Brand name:', brandName)
+    console.log('Brand voice:', brandVoice)
+    console.log('Post topic:', postTopic)
 
     // STEP 2: Image generation with Gemini 2.5 Flash
     const geminiPrompt = buildGeminiPrompt({
       brief,
       subjectAnchor,
       brandName,
-      brandDesc,
       brandVoice,
       postTopic,
     })
+    console.log('Gemini prompt:', geminiPrompt)
 
     const genRes = await fetch(
       `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
@@ -310,7 +295,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
               parts: [
                 { text: geminiPrompt },
                 ...(uploadedBase64
-                  ? [{ inline_data: { mime_type: 'image/jpeg', data: uploadedBase64 } }]
+                  ? [{ inline_data: { mime_type: uploadedMimeType, data: uploadedBase64 } }]
                   : []),
               ],
             },

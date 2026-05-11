@@ -613,7 +613,7 @@ export function CampaignCreator({
               {progressSteps.map(({ key, activeLabel, doneLabel }, i) => {
                 const stepIndex = progressSteps.findIndex((s) => s.key === stage)
                 const thisIndex = i
-                const isDone = thisIndex < stepIndex || (stage === 'done' && thisIndex <= stepIndex)
+                const isDone = stage === 'done' || thisIndex < stepIndex
                 const isActive = key === stage && isLoading
                 const isExpanded = expandedOutputs.has(key as ExpandedOutput)
 
