@@ -15,6 +15,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import type { DirectorBrief } from '@/app/api/campaigns/[id]/generate/route'
+import type { ArchiveEntry } from '@/components/ArchivesTab'
 
 const MAX_PHOTOS = 1
 
@@ -76,10 +77,14 @@ const ACTION_TOOLTIPS: Tooltip[] = [
 
 export function CampaignCreator({
   brandId,
+  archives = [],
   onArchiveSaved,
+  onDeleteArchive,
 }: {
   brandId: string
+  archives?: ArchiveEntry[]
   onArchiveSaved?: () => void
+  onDeleteArchive?: (id: string) => Promise<void>
 }) {
   const [stage, setStage] = useState<Stage>('idle')
   const [postTopic, setPostTopic] = useState('')
@@ -108,6 +113,8 @@ export function CampaignCreator({
   const [archiveDescription, setArchiveDescription] = useState('')
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
+  const [deletingArchiveId, setDeletingArchiveId] = useState<string | null>(null)
+  const [expandedModalArchiveId, setExpandedModalArchiveId] = useState<string | null>(null)
 
   const cardRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -449,6 +456,16 @@ export function CampaignCreator({
       setSaveError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function handleDeleteFromModal(id: string) {
+    setDeletingArchiveId(id)
+    try {
+      await onDeleteArchive?.(id)
+      setSaveError('')
+    } finally {
+      setDeletingArchiveId(null)
     }
   }
 
@@ -865,7 +882,62 @@ export function CampaignCreator({
                 className="mt-1"
               />
             </div>
-            {saveError && <p className="text-sm text-red-600">{saveError}</p>}
+            {saveError && (
+              <div className="space-y-2">
+                <p className="text-sm text-red-600">{saveError}</p>
+                {archives.length >= 5 && (
+                  <div className="rounded-md border border-gray-200 bg-gray-50 p-2">
+                    <p className="mb-2 text-xs font-medium text-gray-700">
+                      Delete one to free up a slot:
+                    </p>
+                    <ul className="space-y-1">
+                      {archives.map((a) => {
+                        const isExpanded = expandedModalArchiveId === a.id
+                        const created = new Date(a.created_at).toLocaleString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          hour: 'numeric',
+                          minute: '2-digit',
+                        })
+                        return (
+                          <li key={a.id} className="rounded border border-gray-200 bg-white">
+                            <div className="flex items-center gap-2 px-2 py-1.5">
+                              <button
+                                className="flex min-w-0 flex-1 items-center gap-1.5 text-left"
+                                onClick={() => setExpandedModalArchiveId(isExpanded ? null : a.id)}
+                              >
+                                <ChevronDown
+                                  size={12}
+                                  className={`shrink-0 text-gray-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                                />
+                                <span className="truncate text-xs font-medium text-gray-700">
+                                  {a.name}
+                                </span>
+                                <span className="shrink-0 text-xs text-gray-400">{created}</span>
+                              </button>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 shrink-0 px-2 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+                                disabled={deletingArchiveId === a.id}
+                                onClick={() => handleDeleteFromModal(a.id)}
+                              >
+                                {deletingArchiveId === a.id ? 'Deleting...' : 'Delete'}
+                              </Button>
+                            </div>
+                            {isExpanded && (
+                              <div className="border-t border-gray-100 px-2 py-1.5 text-xs text-gray-500">
+                                {a.description ?? <span className="italic">No description</span>}
+                              </div>
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button onClick={handleSaveToArchive} disabled={saving || !archiveName.trim()}>

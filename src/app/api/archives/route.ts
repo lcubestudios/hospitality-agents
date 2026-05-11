@@ -29,6 +29,21 @@ export async function POST(req: NextRequest) {
   }
 
   const supabase = await getAuthedSupabaseAdmin()
+
+  // Check archive count limit
+  const { count, error: countError } = await supabase
+    .from('archives')
+    .select('*', { count: 'exact', head: true })
+    .eq('brand_id', session.brandId)
+
+  if (countError) return NextResponse.json({ message: countError.message }, { status: 500 })
+  if (count && count >= 5) {
+    return NextResponse.json(
+      { message: 'Maximum 5 archives allowed. Delete one to save another.' },
+      { status: 409 },
+    )
+  }
+
   const { data, error } = await supabase
     .from('archives')
     .insert({

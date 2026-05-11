@@ -65,26 +65,31 @@ export function AppShell({ brand }: AppShellProps) {
         <div className="mx-auto max-w-2xl space-y-6">
           <h1 className="text-2xl font-bold text-gray-800">{tabHeadings[activeTab]}</h1>
 
-          {activeTab === 'brand' && (
+          <div className={activeTab === 'brand' ? undefined : 'hidden'}>
             <BrandPanel
               id={brand.id}
               name={brand.name}
               description={brand.description}
               brand_voice={brand.brand_voice}
             />
-          )}
+          </div>
 
-          {activeTab === 'campaign' && (
-            <CampaignCreator brandId={brand.id} onArchiveSaved={loadArchives} />
-          )}
+          <div className={activeTab === 'campaign' ? undefined : 'hidden'}>
+            <CampaignCreator
+              brandId={brand.id}
+              archives={archives}
+              onArchiveSaved={loadArchives}
+              onDeleteArchive={handleDeleteArchive}
+            />
+          </div>
 
-          {activeTab === 'archives' && (
+          <div className={activeTab === 'archives' ? undefined : 'hidden'}>
             <ArchivesTab
               archives={archives}
               loading={archivesLoading}
               onDelete={handleDeleteArchive}
             />
-          )}
+          </div>
         </div>
       </main>
     </>
