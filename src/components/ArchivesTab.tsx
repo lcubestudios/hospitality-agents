@@ -47,6 +47,24 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
     if (expandedId === id) setExpandedId(null)
   }
 
+  function handleDownloadImage(url: string) {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'archived-image.jpg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  function handleDownloadVideo(url: string) {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = 'archived-video.mp4'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
   const MAX = 5
   const count = archives.length
 
@@ -169,15 +187,12 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
                           alt="Generated"
                           className="w-full rounded-lg border object-cover"
                         />
-                        <a
-                          href={archive.image_url}
-                          download="archived-image.jpg"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 block text-center text-xs text-blue-600 hover:underline"
+                        <button
+                          onClick={() => handleDownloadImage(archive.image_url)}
+                          className="mt-3 block w-full text-center text-xs text-blue-600 hover:underline"
                         >
                           Download
-                        </a>
+                        </button>
                       </div>
                     )}
                   </div>
@@ -238,15 +253,12 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
                           controls
                           className="w-full rounded-lg border"
                         />
-                        <a
-                          href={archive.video_url}
-                          download="archived-video.mp4"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="mt-3 block text-center text-xs text-blue-600 hover:underline"
+                        <button
+                          onClick={() => handleDownloadVideo(archive.video_url)}
+                          className="mt-3 block w-full text-center text-xs text-blue-600 hover:underline"
                         >
                           Download
-                        </a>
+                        </button>
                       </div>
                     )}
                   </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
@@ -16,7 +17,7 @@ const BRAND_VOICE_PRESETS = [
   'Custom',
 ]
 
-export default function SetupBrandPage() {
+function SetupBrandContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const brandId = searchParams.get('brandId')
@@ -144,5 +145,13 @@ export default function SetupBrandPage() {
         </form>
       </Card>
     </main>
+  )
+}
+
+export default function SetupBrandPage() {
+  return (
+    <Suspense fallback={null}>
+      <SetupBrandContent />
+    </Suspense>
   )
 }

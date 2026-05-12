@@ -343,6 +343,26 @@ export function CampaignCreator({
     }
   }
 
+  function handleDownloadImage() {
+    if (!resultUrl) return
+    const a = document.createElement('a')
+    a.href = resultUrl
+    a.download = 'enhanced-product.jpg'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  function handleDownloadVideo() {
+    if (!videoUrl) return
+    const a = document.createElement('a')
+    a.href = videoUrl
+    a.download = 'campaign-video.mp4'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
   async function handleRegenCaption() {
     if (!campaignId) return
     setRegenCaptionLoading(true)
@@ -640,16 +660,14 @@ export function CampaignCreator({
                       >
                         {regenImageLoading ? 'Regenerating...' : 'Regenerate'}
                       </Button>
-                      <a
-                        href={resultUrl}
-                        download="enhanced-product.jpg"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadImage}
+                        className="w-full"
                       >
-                        <Button variant="outline" size="sm" className="w-full">
-                          Download
-                        </Button>
-                      </a>
+                        Download
+                      </Button>
                     </div>
                   )
                 } else if (key === 'captioning' && captionResult) {
@@ -701,16 +719,14 @@ export function CampaignCreator({
                       >
                         {videoLoading ? 'Regenerating...' : 'Regenerate'}
                       </Button>
-                      <a
-                        href={videoUrl}
-                        download="campaign-video.mp4"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleDownloadVideo}
+                        className="w-full"
                       >
-                        <Button variant="outline" size="sm" className="w-full">
-                          Download
-                        </Button>
-                      </a>
+                        Download
+                      </Button>
                     </div>
                   )
                 }
