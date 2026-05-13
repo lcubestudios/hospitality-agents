@@ -7,12 +7,14 @@ const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
 export interface DirectorBrief {
   hero_label: string
+  dish_shape: 'tall' | 'wide'
   camera_angle: string
   background_subject: string
-  background_atmosphere: string
-  sacred_hierarchy: string
+  tier_1_locked: string
+  tier_2_enhanced: string
+  tier_3_reimagined: string
   creative_direction: {
-    lighting_sculpting: string
+    lighting_refinement: string
     lens_intent: string
     texture_notes: string
     color_grade: string
@@ -22,9 +24,8 @@ export interface DirectorBrief {
     parallax_priority: string
     secondary_motion: string
   }
-  expendable_elements: string
-  image_brief: string
-  video_brief: string
+  image_final_prompt: string
+  video_final_prompt: string
 }
 
 function safeParseJson<T>(raw: string): T | null {
@@ -48,33 +49,40 @@ function safeParseJson<T>(raw: string): T | null {
   }
 }
 
-function buildFallbackBrief(postTopic: string): DirectorBrief {
+export function buildFallbackBrief(postTopic: string): DirectorBrief {
   const subject = postTopic || 'food subject'
   return {
     hero_label: subject,
+    dish_shape: 'wide',
     camera_angle: 'Three-quarter overhead, classic food editorial',
     background_subject: 'surface or environment',
-    background_atmosphere: 'Soft diffused side wash; no hot spots or halos; subtle surface grain.',
-    sacred_hierarchy:
-      'Preserve all food geometry, plating structure, and background subject identity.',
+    tier_1_locked: `${subject} geometry, ingredient placement, plating structure, and background surface identity are fixed. No additions, no deletions.`,
+    tier_2_enhanced:
+      'Refine existing lighting with specular highlights and soft shadow roll-off. Enhance surface textures and optical depth.',
+    tier_3_reimagined:
+      'Re-grade background tonal mood for premium editorial feel. Add subtle atmospheric depth. Keep visible scene recognizable.',
     creative_direction: {
-      lighting_sculpting: 'Rembrandt setup, 45-degree camera-left, soft shadow right',
-      lens_intent: '85mm f/1.8, subject sharp, background aggressive bokeh',
-      texture_notes: 'Specular highlights, surface grain, tactile material quality',
-      color_grade: 'Warm editorial — amber highlights, brown shadows, elevated micro-contrast',
+      lighting_refinement:
+        "Low-Key Chiaroscuro. Rim-lighting from 10 o'clock. Specular highlights on surface. Crushed shadow roll-off.",
+      lens_intent:
+        'Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background bokeh.',
+      texture_notes: 'Specular highlights, surface grain, tactile material quality.',
+      color_grade:
+        'Commercial Editorial Grade — Warm, True-to-Life Tones, Zero Oversaturation, Crushed Blacks in the Shadows.',
     },
     kinetic_script: {
-      camera_vector: 'Slow circular orbit, 90-degree arc around subject, constant pace',
-      parallax_priority: 'Foreground faster than background, natural depth separation',
+      camera_vector:
+        'Lateral Tracking Shot (Sideways Slide), 4 inches left to right. High Frame-Rate Cinematic Drift.',
+      parallax_priority:
+        'Prioritize background parallax separation — foreground faster than background, maximum 3D depth.',
       secondary_motion: 'none',
     },
-    expendable_elements: 'Lighting atmosphere and tonal treatment only.',
-    image_brief: `Execute a high-end commercial reshoot of the ${subject}. Preserve all food geometry and plating. Override lighting with dramatic side-lit setup. Apply editorial color grade and professional depth of field.`,
-    video_brief: `Animate the ${subject} with a lateral trucking shot. Preserve all food geometry and plating. Use natural parallax to reveal scene depth. Physical camera movement only.`,
+    image_final_prompt: `Professional commercial reshoot of ${subject}. Tier 1 locked. Tier 2 lighting refinement with specular highlights. Tier 3 editorial color grade.`,
+    video_final_prompt: `${subject} master footage. Horizontal camera displacement, 4-inch slide. Tier 1 locked. Tier 2 lighting refined. Tier 3 atmosphere re-graded. Natural parallax.`,
   }
 }
 
-function buildVisionPrompt({
+export function buildVisionPrompt({
   brandName,
   brandVoice,
   postTopic,
@@ -83,22 +91,26 @@ function buildVisionPrompt({
   brandVoice: string
   postTopic: string
 }): string {
-  return `You are a commercial food director analyzing a food or drink photo for a professional campaign reshoot.
+  return `You are a professional cinematographer and creative director analyzing an uploaded food or drink photo for a premium Instagram campaign reshoot.
 
 Brand: ${brandName || 'not specified'}
-Voice: ${brandVoice || 'not specified'}
+Brand voice: ${brandVoice || 'not specified'}
 Post topic: ${postTopic || 'not specified'}
 
-Return ONLY valid JSON:
+Your job is to create a Director's Brief for downstream image and video generation.
+
+Return ONLY valid JSON in this exact shape:
 
 {
   "hero_label": "",
+  "dish_shape": "",
   "camera_angle": "",
   "background_subject": "",
-  "background_atmosphere": "",
-  "sacred_hierarchy": "",
+  "tier_1_locked": "",
+  "tier_2_enhanced": "",
+  "tier_3_reimagined": "",
   "creative_direction": {
-    "lighting_sculpting": "",
+    "lighting_refinement": "",
     "lens_intent": "",
     "texture_notes": "",
     "color_grade": ""
@@ -108,80 +120,124 @@ Return ONLY valid JSON:
     "parallax_priority": "",
     "secondary_motion": ""
   },
-  "expendable_elements": "",
-  "image_brief": "",
-  "video_brief": ""
+  "image_final_prompt": "",
+  "video_final_prompt": ""
 }
 
 Rules:
 
-hero_label: 1-3 word dish/drink name. e.g. "carnitas tacos"
+hero_label:
+- 1–3 word plain dish/drink name.
 
-camera_angle: Describe the editorial perspective of this photo as you see it. e.g. "Three-quarter overhead, slight tilt from camera-left" or "Low elevation, slight table-height angle from camera-right". Describe what is in the input — do not choose from a fixed list, do not invent a new angle.
+dish_shape:
+- Classify as exactly one of:
+  - "tall" for burgers, cocktails, shakes, stacked desserts, vertical items
+  - "wide" for bowls, tacos, steaks, plates, platters, flat dishes, spread dishes
 
-background_subject: 2-5 words identifying the physical background. e.g. "dark wooden table", "marble bar top", "outdoor terrace". What it IS — no quality adjectives.
+camera_angle:
+- Faithfully describe the input photo perspective.
+- Do not invent a new angle.
 
-background_atmosphere: Technical instruction for background re-rendering. Use precise light quality terms: color temperature, diffusion type, shadow depth. e.g. "Soft 2700K side wash from camera-left; no hot spots or halos; subtle surface grain." Avoid vague words — no glow, warm, rich, dramatic.
+background_subject:
+- 2–5 words describing what the background physically is.
+- No quality adjectives.
+- Examples: "wood table", "stone countertop", "restaurant booth", "plain wall", "metal tray"
 
-sacred_hierarchy: Food geometry, ingredient placement, plating structure, and background subject identity must not change.
+tier_1_locked:
+- Food geometry, item count, ingredient placement, plating structure, and visible background identity are locked.
+- State exactly what must not change.
+- Do not allow new dishes, drinks, utensils, props, hands, people, or expanded table settings.
 
-creative_direction.lighting_sculpting: Describe the EXISTING lighting in this photo precisely. Type of light, direction, quality. e.g. "Natural diffused window light from camera-right, soft shadows, slight underexposure." This will be elevated, not replaced.
+tier_2_enhanced:
+- Existing lighting quality, surface texture, optical depth, and dimensionality may be refined.
+- Use language like lighting refinement, specular highlights, tactile grain, soft shadow roll-off.
+- Do not replace the dish, plating, or background identity.
 
-creative_direction.lens_intent: Focal length, f-stop, depth. e.g. "85mm f/1.8, subject sharp, background smooth bokeh."
+tier_3_reimagined:
+- Background grade, tonal mood, atmospheric depth, and subtle effects may be creatively improved.
+- Keep the visible background identity recognizable.
+- Atmosphere may evolve, but the scene must not become a different place.
 
-creative_direction.texture_notes: Sensory shorthand for surface elevation. e.g. "Specular highlights on glaze, condensation on glass, organic surface grain."
+creative_direction.lighting_refinement:
+- Assess the existing light and subject position. Prescribe refinement toward Low-Key Chiaroscuro or Rim-lighting from an appropriate angle (e.g., 10–2 o'clock range) based on observed geometry.
+- Use physics-based terms: chiaroscuro, rim light, color temperature, specular highlights, crushed shadow roll-off.
+- Do not use: dramatic, glow, redesign, neon, surreal.
 
-creative_direction.color_grade: Named editorial grade aligned with brand voice. e.g. "Warm Bangkok street-food — amber highlights, brown shadows, elevated micro-contrast." True-to-life, not oversaturated.
+creative_direction.lens_intent:
+- Always return exactly: "Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background bokeh."
 
-kinetic_script.camera_vector: Choose the motion that best reveals this dish cinematically. Choose one: "Slow circular orbit, 90-degree arc around subject, constant pace" | "Slow dolly dip, camera descends 3 inches toward subject, reveals texture" | "Slow lateral truck, 3 inches right, constant pace". No zoom. No push-pull.
+creative_direction.texture_notes:
+- Use sensory surface language based on the visible subject.
+- Mention only visible or physically plausible details such as condensation, glaze sheen, char, steam, crisp edges, oil sheen, moisture, matte grain.
 
-kinetic_script.parallax_priority: Depth relationship during motion. e.g. "Foreground faster than background, natural depth separation."
+creative_direction.color_grade:
+- Always return exactly: "Commercial Editorial Grade — Warm, True-to-Life Tones, Zero Oversaturation, Crushed Blacks in the Shadows."
 
-kinetic_script.secondary_motion: Physically implied motion only. e.g. "Rising steam from surface." If none visible: "none"
+kinetic_script.camera_vector:
+- Choose based on dish_shape.
+- If dish_shape is "tall": return "Vertical Jib Rise, 4 inches upward from plate level. High Frame-Rate Cinematic Drift."
+- If dish_shape is "wide": return "Lateral Tracking Shot (Sideways Slide), 4 inches left to right. High Frame-Rate Cinematic Drift."
+- No pan. No tilt. No orbit. No zoom. No push toward subject. No push-pull.
 
-expendable_elements: "Lighting atmosphere and tonal treatment only."
+kinetic_script.parallax_priority:
+- Always return: "Prioritize background parallax separation — foreground faster than background, maximum 3D depth."
+- Keep the hero subject within the center 70% of the 9:16 frame.
 
-image_brief: 2-3 terse declarative sentences for a still image shoot. No apostrophes or double-quotes. No kinematic language.
+kinetic_script.secondary_motion:
+- Physically implied motion only.
+- Examples: rising steam, condensation drift, slight garnish movement.
+- If none is visible or plausible, return "none."
 
-video_brief: 2-3 terse declarative sentences for a video shoot. Physical cinematography terms only. No color grade language. No apostrophes or double-quotes.
+image_final_prompt:
+- 2–3 terse declarative sentences for Gemini.
+- Reference the three tiers.
+- No kinematic language.
 
-Output ONLY valid JSON.`
+video_final_prompt:
+- 2–3 terse declarative sentences for Veo.
+- Use physical cinematography terms only: "master footage," "cinematic plate," "editorial render," "camera displacement."
+- Reference the three tiers and selected camera vector.
+- Never use: "commercial," "ad," "campaign," "reel," "promo," "social media," or any brand/marketing language.
+
+Output ONLY valid JSON.
+No markdown.
+No explanation.`.trim()
 }
 
 function buildGeminiPrompt({
   brief,
   subjectAnchor,
-  brandName,
-  brandVoice,
-  postTopic,
 }: {
   brief: DirectorBrief
   subjectAnchor: string
-  brandName: string
-  brandVoice: string
-  postTopic: string
 }): string {
   return `[PRODUCTION TIER]
-Camera: Phase One IQ4 150MP or Hasselblad H6D. Medium format rendering — extreme detail, creamy tonal gradients, true color fidelity.
-Lens: ${brief.creative_direction.lens_intent}
+Camera: Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background: creamy bokeh.
+Quality: Commercial Editorial — Direct-to-Advertising register. Maximum surface definition. Physics-based specular highlights on all appropriate surfaces.
 
-[I. THE SCENE — FULL CREATIVE LATITUDE]
-The ${brief.background_subject} stays the same surface and material. Everything else is a creative decision.
-Lighting: Redesign the lighting completely. Current reads as ${brief.creative_direction.lighting_sculpting}. Build something intentional, dramatic, and editorial in its place. Strong key light. Deep shadow. Hard specular on the hero.
-Atmosphere: ${brief.background_atmosphere}
-Grade: ${brief.creative_direction.color_grade}
+[TIER 1 — LOCKED]
+${brief.tier_1_locked}
+Hero anchor: ${subjectAnchor}
+Perspective: ${brief.camera_angle}. Do not flip or radically recompose.
 
-[II. THE ANCHOR — LOCKED]
-Only these elements are fixed: ${subjectAnchor} geometry, ingredient placement, item count, and ${brief.background_subject} identity.
-Perspective family: ${brief.camera_angle}. Do not flip or radically recompose.
+[TIER 2 — ENHANCED]
+${brief.tier_2_enhanced}
+Lighting: ${brief.creative_direction.lighting_refinement}
 Texture: ${brief.creative_direction.texture_notes}
+Optics: ${brief.creative_direction.lens_intent}
 
-[III. GUARDRAILS]
-Fine dining editorial — Michelin campaign quality. Transformation must be visibly dramatic.
-Prohibited: Glowing halos. Neon effects. Artificial saturation boosts. Washed-out midtones. CGI or illustrated look.
+[TIER 3 — REIMAGINED]
+${brief.tier_3_reimagined}
+Color: ${brief.creative_direction.color_grade}
 
-Brand: ${brandName} — ${brandVoice}
-Post: ${postTopic}`
+[GUARDRAILS]
+Premium commercial food editorial. Billboard quality.
+No new objects. No added hands. No added people. No change to item count. No altered plating.
+No glowing halos. No neon effects. No artificial saturation. No CGI look. No warped food geometry.
+Render all surfaces with organic, tactile grain. Soft shadow roll-off and physics-based specular highlights only.
+Natural saturation. True-to-life tones.
+
+Directive: ${brief.image_final_prompt}`
 }
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -196,7 +252,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const supabase = await getAuthedSupabaseAdmin()
     await supabase.from('campaigns').update({ status: 'generating' }).eq('id', campaignId)
 
-    // Fetch campaign + brand context before Vision
     const { data: campaign } = await supabase
       .from('campaigns')
       .select('brand_id, post_topic')
@@ -232,7 +287,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const client = new Anthropic()
           const visionRes = await client.messages.create({
             model: 'claude-sonnet-4-6',
-            max_tokens: 1024,
+            max_tokens: 1500,
             messages: [
               {
                 role: 'user',
@@ -270,18 +325,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const subjectAnchor = postTopic.trim() || brief.hero_label
     console.log('Subject anchor:', subjectAnchor)
-    console.log('Brand name:', brandName)
-    console.log('Brand voice:', brandVoice)
-    console.log('Post topic:', postTopic)
 
     // STEP 2: Image generation with Gemini 2.5 Flash
-    const geminiPrompt = buildGeminiPrompt({
-      brief,
-      subjectAnchor,
-      brandName,
-      brandVoice,
-      postTopic,
-    })
+    const geminiPrompt = buildGeminiPrompt({ brief, subjectAnchor })
     console.log('Gemini prompt:', geminiPrompt)
 
     const genRes = await fetch(

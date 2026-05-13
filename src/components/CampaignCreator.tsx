@@ -213,7 +213,7 @@ export function CampaignCreator({
       const data = await res.json()
       freshImageUrl = data.asset_url
       freshBrief = data.director_brief ?? null
-      setResultUrl(data.asset_url)
+      setResultUrl(`${data.asset_url}?t=${Date.now()}`)
       setDirectorBrief(freshBrief)
     }
 
@@ -240,7 +240,7 @@ export function CampaignCreator({
       })
       if (!res.ok) throw new Error('Video generation failed')
       const { asset_url } = await res.json()
-      setVideoUrl(asset_url)
+      setVideoUrl(`${asset_url}?t=${Date.now()}`)
     }
   }
 
@@ -392,11 +392,12 @@ export function CampaignCreator({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           image_url: resultUrl ?? uploadedUrls[0],
+          director_brief: directorBrief ?? null,
         }),
       })
       if (!res.ok) throw new Error('Video regeneration failed')
       const { asset_url } = await res.json()
-      setVideoUrl(asset_url)
+      setVideoUrl(`${asset_url}?t=${Date.now()}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {

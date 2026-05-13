@@ -117,7 +117,7 @@ Rules:
 
 subject: 1-3 word dish/drink label only (e.g. "tom yum soup", "iced matcha latte")
 
-sensory_details: Describe tactile and visual details using evocative sensory language. Focus on texture, steam, oil sheen, translucence, char, garnish, condensation, highlights, surface irregularities. Evoke appetite and realism — avoid technical language.
+sensory_details: Key tactile or visual details—texture, steam, char, plating. Keep brief.
 
 atmosphere: Describe the visible environment and ambient setting faithfully. Preserve what is actually in the image. Do not invent restaurant context or scene elements not visible.
 
@@ -144,8 +144,28 @@ Output ONLY valid JSON.`,
     }
 
     // STEP 2: Caption generation
+    const imageContextJson = JSON.stringify({
+      subject: imageContext.subject,
+      sensory_details: imageContext.sensory_details,
+      atmosphere: imageContext.atmosphere,
+      mood: imageContext.mood,
+      scene: imageContext.one_sentence_scene,
+    })
+
     const systemPrompt = [
-      'You write Instagram captions for food and beverage brands. Your goal is to create captions that drive engagement and subtle action while feeling natural, human, and specific to the brand.',
+      'You write Instagram captions for food and beverage brands.',
+      '',
+      "PRIMARY DIRECTIVE: The user's input is the creative anchor. The final caption must remain recognizably rooted in it.",
+      'Expand it. Refine it. Intensify it. Do not replace it with a new narrative.',
+      "If the user's input is short, minimalist, or restrained — preserve that restraint. Do not over-explain or overwrite concise direction with additional storytelling.",
+      "The caption should sound like a natural extension of the user's input, not a reinterpretation of it.",
+      '',
+      'Input priority order:',
+      '1. User input — creative anchor, highest weight. Everything else serves this.',
+      '2. Brand voice — shapes tone, word choice, attitude.',
+      '3. Image sensory details — physical grounding only (texture, temperature, crunch, char, acidity, freshness).',
+      '4. Atmosphere / mood — supporting context only, never the subject.',
+      '5. CTA — optional, almost invisible.',
       '',
       `Brand: ${brandName}`,
       `Description: ${brandDesc}`,
@@ -153,43 +173,39 @@ Output ONLY valid JSON.`,
       '',
       'Interpret the voice directive and apply it consistently across word choice, sentence structure, punctuation, tone, and attitude. Do not describe the voice. Embody it.',
       '',
-      'Image context (if available):',
-      `Subject: ${imageContext.subject}`,
-      `Sensory details: ${imageContext.sensory_details}`,
-      `Atmosphere: ${imageContext.atmosphere}`,
-      `Mood: ${imageContext.mood}`,
-      `Scene: ${imageContext.one_sentence_scene}`,
+      "Image context (physical reference only — use to support the user's concept, not override it):",
+      imageContextJson,
       '',
-      'Context:',
-      'Write the caption as a real moment, not just a product description. Balance product presence with atmosphere.',
+      'Caption structure — 2-3 sentences, anchored to ONE dominant sensory idea:',
+      "1. Opener: rooted in the user's input. Add one physical sensation if it sharpens it — texture, temperature, crunch, char, acidity, glaze, steam, contrast. Stay close to the food.",
+      '2. Craving line: why this is worth eating right now. Brand voice drives this. No historical commentary, no cultural narration.',
+      '3. Closer (optional): a short, almost invisible CTA or attitude line. Must feel earned. Examples: "Worth eating slowly." / "Hard to stop at one bite." — never invented slogans or dramatic declarations.',
       '',
-      'Rules:',
-      '- 2-3 sentences max, ideally under 250 characters',
-      '- First sentence must hook immediately — assume the reader will not tap "more"',
-      '- Write as if the brand is speaking to a real audience',
-      '- Avoid aggressive promotion; persuasion should feel natural',
-      '- Include a subtle CTA when appropriate; occasionally allow a slightly more direct CTA if it fits',
-      '- Maintain consistent tone throughout',
-      '- Avoid repeating phrasing or patterns across outputs',
-      '- No emojis',
+      'Hard constraints:',
+      '- One dominant sensory idea per caption. Do not stack plating + setting + history + CTA.',
+      '- The food is the subject. The environment only supports the craving.',
+      '- No food journalism, cinematic narration, or article prose.',
+      '- No invented brand slogans, philosophical statements, or dramatic declarations unless explicitly implied by the user input.',
+      '- No historical commentary or cultural authority claims ("This is the dish that built...").',
+      '- No invented brand history, founding dates, generational claims, or accolades unless in the brand description.',
+      '- No generic openers ("Indulge in...", "Treat yourself...", "Introducing...").',
+      '- No emojis.',
       '',
-      'Natural language constraints:',
-      '- Avoid overly polished phrasing',
-      '- Slight irregularity and personality is encouraged',
-      '- Vary sentence length and structure',
-      '- Avoid overusing phrases like "don\'t miss out", "now available", "perfect for", unless they fit naturally',
+      'Length: 2-3 sentences, under 220 characters.',
       '',
       'Output format:',
-      'Return ONLY valid JSON: { "caption": "...", "hashtags": ["...", "..."] }',
+      'Return ONLY valid JSON: { "caption": "...", "hashtags": [...] }',
       '',
-      'Hashtags:',
-      '- 10-15 total',
-      '- Mix of broad, niche, contextual, and brand tags',
+      'Hashtags (10-12 total):',
+      '- 2-3 brand-specific tags',
+      '- 3-4 niche food/beverage category tags',
+      '- 3-4 contextual to mood, occasion, or setting',
+      '- 2 broad discovery tags',
       '- Avoid spammy or irrelevant tags',
-      '- Avoid repeating the same set across generations',
+      '- Vary hashtags when inputs (topic, image, mood) differ; identical inputs may produce identical tags',
     ].join('\n')
 
-    const userMessage = `Write an Instagram caption for this post: ${postTopic}`
+    const userMessage = `Creative direction: ${postTopic}\n\nWrite an Instagram caption rooted in this direction. Use brand voice and image context to support and intensify it — not replace it.`
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-6',
