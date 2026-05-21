@@ -216,10 +216,16 @@ Output ONLY valid JSON.`,
           role: 'user',
           content: userMessage,
         },
+        {
+          role: 'assistant',
+          content: '{',
+        },
       ],
     })
 
-    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
+    const rawContent = response.content[0].type === 'text' ? response.content[0].text : ''
+    const raw = '{' + rawContent
+    console.log('Caption raw response:', raw)
     const parsed = safeParseJson<{ caption: string; hashtags: string[] }>(raw)
 
     if (!parsed?.caption) {
