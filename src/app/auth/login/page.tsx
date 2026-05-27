@@ -57,14 +57,14 @@ export default function LoginPage() {
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
       <Card className="max-w-sm p-6">
-        <h1 className="mb-6 text-2xl font-bold">Log In</h1>
+        <h1 className="mb-6 text-2xl font-bold">Login</h1>
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <Label htmlFor="brand-name">Brand Name</Label>
+            <Label htmlFor="brand-name">Username</Label>
             <Input
               id="brand-name"
-              placeholder="e.g., Luna Cafe"
+              placeholder="Enter your username"
               value={brandName}
               onChange={(e) => setBrandName(e.target.value)}
               required
@@ -77,7 +77,7 @@ export default function LoginPage() {
             <Input
               id="password"
               type="password"
-              placeholder="Your password"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -101,7 +101,7 @@ export default function LoginPage() {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? 'Logging in...' : 'Log In'}
+            {loading ? 'Logging in...' : 'Login'}
           </Button>
         </form>
 

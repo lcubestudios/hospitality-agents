@@ -188,7 +188,7 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
                           className="w-full rounded-lg border object-cover"
                         />
                         <button
-                          onClick={() => handleDownloadImage(archive.image_url)}
+                          onClick={() => handleDownloadImage(archive.image_url ?? '')}
                           className="mt-3 block w-full text-center text-xs text-blue-600 hover:underline"
                         >
                           Download
@@ -254,7 +254,7 @@ export function ArchivesTab({ archives, loading, onDelete }: ArchivesTabProps) {
                           className="w-full rounded-lg border"
                         />
                         <button
-                          onClick={() => handleDownloadVideo(archive.video_url)}
+                          onClick={() => handleDownloadVideo(archive.video_url ?? '')}
                           className="mt-3 block w-full text-center text-xs text-blue-600 hover:underline"
                         >
                           Download

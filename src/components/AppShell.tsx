@@ -1,12 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { BrandPanel } from '@/components/BrandPanel'
 import { CampaignCreator } from '@/components/CampaignCreator'
 import { SideNav } from '@/components/SideNav'
-import { ArchivesTab, type ArchiveEntry } from '@/components/ArchivesTab'
+import { AgentGrid } from '@/components/AgentGrid'
+import { Button } from '@/components/ui/button'
+import { ChevronLeft } from 'lucide-react'
 
-export type Tab = 'brand' | 'campaign' | 'archives'
+export type View = 'home' | 'campaign-creator' | 'brand'
 
 interface AppShellProps {
   brand: {
@@ -18,78 +20,47 @@ interface AppShellProps {
 }
 
 export function AppShell({ brand }: AppShellProps) {
-  const [activeTab, setActiveTab] = useState<Tab>('campaign')
-  const [archives, setArchives] = useState<ArchiveEntry[]>([])
-  const [archivesLoading, setArchivesLoading] = useState(true)
+  const [activeView, setActiveView] = useState<View>('home')
 
-  async function loadArchives() {
-    setArchivesLoading(true)
-    try {
-      const res = await fetch('/api/archives')
-      if (res.ok) setArchives(await res.json())
-    } finally {
-      setArchivesLoading(false)
+  function handleSelectAgent(agentId: string) {
+    if (agentId === 'campaign-creator') {
+      setActiveView('campaign-creator')
     }
-  }
-
-  useEffect(() => {
-    fetch('/api/archives')
-      .then((res) => (res.ok ? res.json() : []))
-      .then((data) => {
-        setArchives(data)
-        setArchivesLoading(false)
-      })
-      .catch(() => setArchivesLoading(false))
-  }, [])
-
-  async function handleDeleteArchive(id: string) {
-    await fetch(`/api/archives/${id}`, { method: 'DELETE' })
-    setArchives((prev) => prev.filter((a) => a.id !== id))
-  }
-
-  const tabHeadings: Record<Tab, string> = {
-    brand: 'Brand Info',
-    campaign: 'Campaign Creator',
-    archives: 'Archives',
   }
 
   return (
     <>
-      <SideNav
-        brandId={brand.id}
-        brandName={brand.name}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-      />
+      <SideNav activeView={activeView} onViewChange={setActiveView} />
       <main className="ml-48 min-h-screen bg-gray-100 p-4">
-        <div className="mx-auto max-w-2xl space-y-6">
-          <h1 className="text-2xl font-bold text-gray-800">{tabHeadings[activeTab]}</h1>
+        <div className="mx-auto max-w-4xl space-y-6">
+          {/* Back button for non-home views */}
+          {activeView !== 'home' && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setActiveView('home')}
+              className="gap-2"
+            >
+              <ChevronLeft size={18} />
+              Back to agents
+            </Button>
+          )}
 
-          <div className={activeTab === 'brand' ? undefined : 'hidden'}>
-            <BrandPanel
-              id={brand.id}
-              name={brand.name}
-              description={brand.description}
-              brand_voice={brand.brand_voice}
-            />
-          </div>
+          {/* Home view */}
+          {activeView === 'home' && <AgentGrid onSelectAgent={handleSelectAgent} />}
 
-          <div className={activeTab === 'campaign' ? undefined : 'hidden'}>
-            <CampaignCreator
-              brandId={brand.id}
-              archives={archives}
-              onArchiveSaved={loadArchives}
-              onDeleteArchive={handleDeleteArchive}
-            />
-          </div>
+          {/* Campaign Creator view */}
+          {activeView === 'campaign-creator' && (
+            <div className="space-y-6">
+              <h2 className="text-2xl font-bold text-gray-800">Campaign Creator</h2>
+              <CampaignCreator brandId={brand.id} />
+            </div>
+          )}
 
-          <div className={activeTab === 'archives' ? undefined : 'hidden'}>
-            <ArchivesTab
-              archives={archives}
-              loading={archivesLoading}
-              onDelete={handleDeleteArchive}
-            />
-          </div>
+          {/* Settings view */}
+          {activeView === 'brand' && (
+            <BrandPanel id={brand.id} name={brand.name} description={brand.description} />
+          )}
         </div>
       </main>
     </>

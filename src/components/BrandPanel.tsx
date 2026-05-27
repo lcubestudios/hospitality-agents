@@ -7,52 +7,31 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 
-const VOICE_PRESETS = [
-  'Warm & Local',
-  'Premium & Refined',
-  'Playful & Fun',
-  'Professional & Trustworthy',
-  'Energetic & Bold',
-  'Artisanal & Authentic',
-  'Casual & Approachable',
-]
-
 interface BrandPanelProps {
   id: string
   name: string
   description: string
-  brand_voice?: string
 }
 
-export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPanelProps) {
+export function BrandPanel({ id, name, description }: BrandPanelProps) {
   const router = useRouter()
   const [isEditing, setIsEditing] = useState(false)
   const [nameVal, setNameVal] = useState(name)
   const [descVal, setDescVal] = useState(description)
-
-  const foundPreset = VOICE_PRESETS.find((p) => brand_voice?.includes(p)) || ''
-  const extractCustom = (voice: string, preset: string) => {
-    if (!preset) return voice?.trim() || ''
-    return voice.replace(preset, '').replace(/^\. /, '').trim()
-  }
-
-  const [voicePreset, setVoicePreset] = useState(foundPreset)
-  const [voiceCustom, setVoiceCustom] = useState(extractCustom(brand_voice, foundPreset))
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [deleting, setDeleting] = useState(false)
 
   async function handleSave() {
     setLoading(true)
     setError('')
 
     try {
-      const brandVoice = voicePreset
-        ? `${voicePreset}${voiceCustom ? '. ' + voiceCustom : ''}`
-        : voiceCustom
       const res = await fetch(`/api/brands/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: nameVal, description: descVal, brand_voice: brandVoice }),
+        body: JSON.stringify({ name: nameVal, description: descVal }),
       })
 
       if (!res.ok) {
@@ -72,55 +51,99 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
   function handleCancel() {
     setNameVal(name)
     setDescVal(description)
-    setVoicePreset(foundPreset)
-    setVoiceCustom(extractCustom(brand_voice, foundPreset))
     setError('')
     setIsEditing(false)
   }
 
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      const res = await fetch(`/api/brands/${id}`, { method: 'DELETE' })
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.message || 'Failed to delete')
+      }
+      await fetch('/api/auth/logout', { method: 'POST' })
+      router.push('/auth/login')
+    } catch (err) {
+      console.error('Delete failed:', err)
+      setDeleting(false)
+    }
+  }
+
   if (!isEditing) {
     return (
-      <Card className="p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-xl font-bold">Brand</h2>
-          <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
-            Edit
-          </Button>
-        </div>
-        <div className="space-y-4 text-sm">
-          <div>
-            <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
-              Brand Name
-            </p>
-            <p className="font-semibold text-gray-800">{nameVal}</p>
+      <div className="space-y-6">
+        <Card className="p-6">
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xl font-bold">Brand Info</h2>
+            <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
+              Edit
+            </Button>
           </div>
-          <div>
-            <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
-              Description
-            </p>
-            <p className="text-gray-600">{descVal || '—'}</p>
-          </div>
-          <div>
-            <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
-              Brand Voice
-            </p>
-            {voicePreset ? (
-              <p className="text-gray-600">
-                <span className="font-semibold text-gray-800">{voicePreset}</span>
-                {voiceCustom && `. ${voiceCustom}`}
+          <div className="space-y-4 text-sm">
+            <div>
+              <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
+                Brand Name
               </p>
-            ) : (
-              <p className="text-gray-400">—</p>
-            )}
+              <p className="font-semibold text-gray-800">{nameVal}</p>
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-medium tracking-wide text-gray-400 uppercase">
+                Description
+              </p>
+              <p className="text-gray-600">{descVal || '—'}</p>
+            </div>
           </div>
-        </div>
-      </Card>
+        </Card>
+
+        <Card className="p-6">
+          <h2 className="mb-4 text-xl font-bold">Account</h2>
+          <Button
+            onClick={() => setShowDeleteConfirm(true)}
+            variant="outline"
+            disabled={deleting}
+            className="w-full justify-start text-red-600 hover:bg-red-50 hover:text-red-700"
+            title="Delete Account"
+          >
+            Delete Account
+          </Button>
+
+          {showDeleteConfirm && (
+            <div className="mt-3 rounded-md border border-red-200 bg-red-50 p-3">
+              <p className="mb-2 text-xs font-medium text-red-900">
+                Delete &quot;{nameVal}&quot;? Cannot undo.
+              </p>
+              <div className="flex gap-2">
+                <Button
+                  variant="destructive"
+                  onClick={handleDelete}
+                  disabled={deleting}
+                  size="sm"
+                  className="flex-1 text-xs"
+                >
+                  {deleting ? 'Deleting...' : 'Delete'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={deleting}
+                  size="sm"
+                  className="flex-1 text-xs"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
     )
   }
 
   return (
     <Card className="p-6">
-      <h2 className="mb-4 text-xl font-bold">Brand</h2>
+      <h2 className="mb-4 text-xl font-bold">Edit Brand Info</h2>
       <div className="space-y-4">
         <div>
           <Label htmlFor="brand-name">Brand Name</Label>
@@ -141,40 +164,13 @@ export function BrandPanel({ id, name, description, brand_voice = '' }: BrandPan
             className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring mt-1 w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
           />
         </div>
-        <div>
-          <Label htmlFor="brand-voice-preset">Brand Voice</Label>
-          <select
-            id="brand-voice-preset"
-            value={voicePreset}
-            onChange={(e) => setVoicePreset(e.target.value)}
-            className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring mt-1 w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          >
-            <option value="">Select a tone...</option>
-            {VOICE_PRESETS.map((preset) => (
-              <option key={preset} value={preset}>
-                {preset}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <Label htmlFor="brand-voice-custom">Voice Details (optional)</Label>
-          <textarea
-            id="brand-voice-custom"
-            value={voiceCustom}
-            onChange={(e) => setVoiceCustom(e.target.value)}
-            rows={2}
-            placeholder="e.g., We use humor, emphasize freshness and quality, avoid corporate jargon"
-            className="border-input bg-background placeholder:text-muted-foreground focus:ring-ring mt-1 w-full rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none"
-          />
-        </div>
         {error && <p className="text-sm text-red-600">{error}</p>}
         <div className="flex gap-2">
           <Button onClick={handleSave} disabled={loading} className="flex-1">
             {loading ? 'Saving...' : 'Save'}
           </Button>
           <Button variant="outline" onClick={handleCancel} disabled={loading} className="flex-1">
-            Reset
+            Cancel
           </Button>
         </div>
       </div>

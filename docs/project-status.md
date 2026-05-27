@@ -101,9 +101,15 @@ Ready to proceed to step 7 (video generation).
 
 ## Next session: pick up here
 
-1. **Image + video prompt refinement** — improve generation relevance and quality across F&B use-cases
-2. **Brand voice captioning** — captions should reflect the brand's voice, not generic copy
-3. **UI polish for demo** — cleaner layout and flow so the product is presentable to investors/users
+### Completed (2026-05-25)
+
+- ✅ **Dashboard redesign** — Brand settings refactored (edit name/description), brand voice now in Campaign Creator, Log Out moved to sidebar bottom, standardized auth copy (Username instead of Brand Name, simplified headings)
+
+### In Progress / Next Priority
+
+1. **Improve signup flow** — Make onboarding more guided and intuitive. Current flow (signup → setup-brand → home) works but needs better UX polish, progress indicators, field validation messaging, and clearer intent at each step.
+2. **Image + video prompt refinement** — improve generation relevance and quality across F&B use-cases
+3. **Brand voice captioning** — captions should reflect the brand's voice, not generic copy
 
 ---
 

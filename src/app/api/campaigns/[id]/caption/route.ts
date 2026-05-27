@@ -36,7 +36,11 @@ function safeParseJson<T>(raw: string): T | null {
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await params
-    const { image_url: photoUrl } = await req.json()
+    const {
+      image_url: photoUrl,
+      caption_style: captionStyle,
+      post_topic: topicOverride,
+    } = await req.json()
 
     if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json({ message: 'ANTHROPIC_API_KEY not configured' }, { status: 500 })
@@ -61,7 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandName = brand?.name ?? 'our brand'
     const brandDesc = brand?.description ?? ''
     const brandVoice = brand?.brand_voice ?? ''
-    const postTopic = campaign?.post_topic ?? 'a social media post'
+    const postTopic = (topicOverride || campaign?.post_topic || '').trim() || 'a social media post'
 
     // STEP 1: Vision analysis — evocative scene language for caption writing
     let imageContext: CaptionImageContext = {
@@ -152,6 +156,26 @@ Output ONLY valid JSON.`,
       scene: imageContext.one_sentence_scene,
     })
 
+    const toneMap: Record<string, string> = {
+      Friendly:
+        'warm, direct, conversational. Like talking to a regular. Short sentences. No jargon.',
+      Professional: 'measured, confident, authoritative. Clear and precise. No slang.',
+      Playful: 'light, witty, energetic. Unexpected word choices. Can bend rules slightly.',
+      Bold: 'assertive, declarative, punchy. No hedging. Strong verbs. Short sentences.',
+    }
+    const enthusiasmMap: Record<string, string> = {
+      Calm: 'Restrained energy. Let the food speak. No exclamation. No urgency.',
+      Warm: 'Inviting but not pushy. Natural warmth without over-excitement.',
+      Energetic: 'Momentum in the writing. Forward motion. Builds to a punch.',
+      Excited: 'High energy but contained. Still readable, not chaotic.',
+    }
+    const toneDirective = captionStyle?.tone
+      ? `Tone override: ${captionStyle.tone} — ${toneMap[captionStyle.tone] ?? captionStyle.tone}`
+      : null
+    const enthusiasmDirective = captionStyle?.enthusiasm
+      ? `Energy level: ${captionStyle.enthusiasm} — ${enthusiasmMap[captionStyle.enthusiasm] ?? captionStyle.enthusiasm}`
+      : null
+
     const systemPrompt = [
       'You write Instagram captions for food and beverage brands.',
       '',
@@ -170,8 +194,15 @@ Output ONLY valid JSON.`,
       `Brand: ${brandName}`,
       `Description: ${brandDesc}`,
       `Voice directive: ${brandVoice}`,
+      ...(toneDirective ? [toneDirective] : []),
+      ...(enthusiasmDirective ? [enthusiasmDirective] : []),
       '',
       'Interpret the voice directive and apply it consistently across word choice, sentence structure, punctuation, tone, and attitude. Do not describe the voice. Embody it.',
+      ...(toneDirective || enthusiasmDirective
+        ? [
+            'The tone and energy overrides above take precedence over inferred brand voice energy level.',
+          ]
+        : []),
       '',
       "Image context (physical reference only — use to support the user's concept, not override it):",
       imageContextJson,
@@ -216,15 +247,10 @@ Output ONLY valid JSON.`,
           role: 'user',
           content: userMessage,
         },
-        {
-          role: 'assistant',
-          content: '{',
-        },
       ],
     })
 
-    const rawContent = response.content[0].type === 'text' ? response.content[0].text : ''
-    const raw = '{' + rawContent
+    const raw = response.content[0].type === 'text' ? response.content[0].text : ''
     console.log('Caption raw response:', raw)
     const parsed = safeParseJson<{ caption: string; hashtags: string[] }>(raw)
 
