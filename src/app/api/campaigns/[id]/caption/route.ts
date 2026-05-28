@@ -57,7 +57,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { data: brand } = campaign
       ? await supabase
           .from('brands')
-          .select('name, description, brand_voice')
+          .select(
+            'name, description, brand_voice, business_type, food_drink_type, location, atmosphere, personality',
+          )
           .eq('id', campaign.brand_id)
           .single()
       : { data: null }
@@ -65,6 +67,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandName = brand?.name ?? 'our brand'
     const brandDesc = brand?.description ?? ''
     const brandVoice = brand?.brand_voice ?? ''
+
+    const brandProfileLines = [
+      brand?.business_type && `Venue type: ${brand.business_type}`,
+      brand?.food_drink_type && `Food & drink focus: ${brand.food_drink_type}`,
+      brand?.location && `Location: ${brand.location}`,
+      brand?.atmosphere?.length && `Atmosphere: ${brand.atmosphere.join(', ')}`,
+      brand?.personality?.length && `Personality: ${brand.personality.join(', ')}`,
+    ].filter(Boolean)
+    const brandProfile = brandProfileLines.length ? brandProfileLines.join('\n') : ''
     const postTopic = (topicOverride || campaign?.post_topic || '').trim() || 'a social media post'
 
     // STEP 1: Vision analysis — evocative scene language for caption writing
@@ -192,6 +203,7 @@ Output ONLY valid JSON.`,
       '5. CTA — optional, almost invisible.',
       '',
       `Brand: ${brandName}`,
+      ...(brandProfile ? [`Brand profile:\n${brandProfile}`] : []),
       `Description: ${brandDesc}`,
       `Voice directive: ${brandVoice}`,
       ...(toneDirective ? [toneDirective] : []),

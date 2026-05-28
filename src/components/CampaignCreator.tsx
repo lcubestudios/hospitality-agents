@@ -1,16 +1,7 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import {
-  ArrowLeft,
-  CheckCircle,
-  ChevronDown,
-  ChevronUp,
-  Circle,
-  Image,
-  Info,
-  Loader2,
-} from 'lucide-react'
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Image, Info } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -25,6 +16,7 @@ import {
 } from '@/components/ui/dialog'
 import type { DirectorBrief, CreativeMode } from '@/app/api/campaigns/[id]/generate/route'
 import type { ArchiveEntry } from '@/components/ArchivesTab'
+import { SocialMockups } from '@/components/SocialMockups'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -48,7 +40,7 @@ interface GenerationOptions {
   video: boolean
 }
 
-type ExpandedOutput = 'generating' | 'captioning' | 'videoing'
+type OutputTabType = 'outputs' | 'previews'
 
 interface RequiredInput {
   id: string
@@ -169,26 +161,6 @@ const PHOTO_TEMPLATES: TemplateConfig[] = [
     ],
   },
   {
-    id: 'ingredient-focus',
-    label: 'Ingredient Focus',
-    description: 'Texture and detail close-up',
-    type: 'photo',
-    examplePreview: '/templates/ingredient-focus.jpg',
-    exampleType: 'image',
-    promptIntent:
-      'Macro or close-detail focus on a key ingredient or texture. Celebrate the raw material.',
-    minPhotos: 1,
-    maxPhotos: 1,
-    requiredInputs: [
-      {
-        id: 'ingredient',
-        label: 'Ingredient or dish photo',
-        description: 'Photo to extract texture detail from',
-        required: true,
-      },
-    ],
-  },
-  {
     id: 'someone-eating',
     label: 'Someone Eating',
     description: 'Food with human interaction',
@@ -198,15 +170,9 @@ const PHOTO_TEMPLATES: TemplateConfig[] = [
     promptIntent:
       'Lifestyle moment with human hands or a person enjoying the dish. Natural, candid energy.',
     minPhotos: 1,
-    maxPhotos: 2,
+    maxPhotos: 1,
     requiredInputs: [
       { id: 'dish', label: 'Dish photo', description: 'The dish being enjoyed', required: true },
-      {
-        id: 'lifestyle',
-        label: 'Lifestyle reference',
-        description: 'A dining moment or person reference',
-        required: false,
-      },
     ],
   },
 ]
@@ -228,46 +194,6 @@ const VIDEO_TEMPLATES: TemplateConfig[] = [
         id: 'dish',
         label: 'Dish photo',
         description: 'Starting frame for the reveal',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'top-down-pan',
-    label: 'Top-Down Pan',
-    description: 'Overhead table movement',
-    type: 'video',
-    examplePreview: '/templates/top-down-pan.mp4',
-    exampleType: 'video',
-    promptIntent:
-      'Camera begins overhead, slowly panning or drifting across the scene. Flat lay in motion.',
-    minPhotos: 1,
-    maxPhotos: 1,
-    requiredInputs: [
-      {
-        id: 'dish',
-        label: 'Dish photo',
-        description: 'Hero dish for the overhead pan',
-        required: true,
-      },
-    ],
-  },
-  {
-    id: 'ambient-motion',
-    label: 'Ambient Motion',
-    description: 'Subtle environmental movement',
-    type: 'video',
-    examplePreview: '/templates/ambient-motion.mp4',
-    exampleType: 'video',
-    promptIntent:
-      'Mostly static camera. Life in the scene: steam rising, herbs shifting, light changing. Restrained.',
-    minPhotos: 1,
-    maxPhotos: 1,
-    requiredInputs: [
-      {
-        id: 'dish',
-        label: 'Dish photo',
-        description: 'Scene to bring to life with subtle motion',
         required: true,
       },
     ],
@@ -317,15 +243,9 @@ const VIDEO_TEMPLATES: TemplateConfig[] = [
     promptIntent:
       'Scene includes a person enjoying the food. Natural, warm, candid. Not overly staged.',
     minPhotos: 1,
-    maxPhotos: 2,
+    maxPhotos: 1,
     requiredInputs: [
       { id: 'dish', label: 'Dish photo', description: 'The dish being enjoyed', required: true },
-      {
-        id: 'lifestyle',
-        label: 'Lifestyle reference',
-        description: 'A dining moment or setting reference',
-        required: false,
-      },
     ],
   },
 ]
@@ -447,21 +367,6 @@ const TIME_OF_DAY_OPTIONS = ['Morning', 'Lunch', 'Evening', 'Night']
 const CREATIVE_MODE_OPTIONS = ['Enhanced', 'Editorial', 'Cinematic']
 const TONE_OPTIONS = ['Friendly', 'Professional', 'Playful', 'Bold']
 const ENTHUSIASM_OPTIONS = ['Calm', 'Warm', 'Energetic', 'Excited']
-
-const ACTION_TOOLTIPS = [
-  {
-    label: 'Save to Archive',
-    tip: 'Save this campaign to your Archive for later reference. You will be prompted for a name.',
-  },
-  {
-    label: 'Download All',
-    tip: 'Download image, video, and caption as separate files in one click.',
-  },
-  {
-    label: 'New Campaign',
-    tip: 'Start fresh with a new template and photo. Current outputs will be cleared.',
-  },
-]
 
 // ─── Sub-components ────────────────────────────────────────────────────────────
 
@@ -687,17 +592,6 @@ function SelectorRow({
   )
 }
 
-function TooltipIcon({ tip }: { tip: string }) {
-  return (
-    <div className="group relative inline-flex items-center">
-      <Info size={13} className="cursor-help text-gray-400 hover:text-gray-600" />
-      <div className="pointer-events-none absolute right-0 bottom-full z-50 mb-2 w-56 rounded bg-gray-800 px-2.5 py-1.5 text-xs leading-relaxed text-white opacity-0 transition-opacity group-hover:opacity-100">
-        {tip}
-      </div>
-    </div>
-  )
-}
-
 // ─── Main component ────────────────────────────────────────────────────────────
 
 export function CampaignCreator({ brandId }: { brandId: string }) {
@@ -715,7 +609,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   const [videoUrl, setVideoUrl] = useState<string | null>(null)
   const [videoLoading, setVideoLoading] = useState(false)
   const [directorBrief, setDirectorBrief] = useState<DirectorBrief | null>(null)
-  const [expandedOutputs, setExpandedOutputs] = useState<Set<ExpandedOutput>>(new Set())
+  const [outputTab, setOutputTab] = useState<OutputTabType>('outputs')
 
   // Template selection
   const [selectedTemplate, setSelectedTemplate] = useState<TemplateConfig | null>(null)
@@ -768,7 +662,6 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     stage === 'videoing'
   const isIdle = stage === 'idle'
   const hasOutputs = !!(resultUrl || captionResult || videoUrl)
-  const isRegen = !!campaignId
 
   const generationOptions: GenerationOptions = {
     image: selectedTemplate?.type === 'photo',
@@ -781,11 +674,13 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     : {}
 
   const captionStyle = {
-    tone: captionTone || resolvedCaptionStyle.tone || undefined,
-    enthusiasm: captionEnthusiasm || resolvedCaptionStyle.enthusiasm || undefined,
+    ...(captionTone || resolvedCaptionStyle.tone
+      ? { tone: captionTone || resolvedCaptionStyle.tone }
+      : {}),
+    ...(captionEnthusiasm || resolvedCaptionStyle.enthusiasm
+      ? { enthusiasm: captionEnthusiasm || resolvedCaptionStyle.enthusiasm }
+      : {}),
   }
-
-  const resolvedCaptionStyleId = captionStyleId
 
   const visualStyle = {
     mood: mood || undefined,
@@ -806,51 +701,12 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
     selectedTemplate.requiredInputs.filter((i) => i.required).every((i) => !!photoSlots[i.id])
 
   const captionRequirements =
-    !generationOptions.caption || (postTopic.trim().length > 0 && !!resolvedCaptionStyleId)
+    !generationOptions.caption || (postTopic.trim().length > 0 && !!captionStyleId)
 
   const canGenerate =
     selectedTemplate !== null &&
     (selectedTemplate.minPhotos === 0 || requiredSlotsFilled) &&
     captionRequirements
-
-  const progressSteps: { key: Stage; activeLabel: string; doneLabel: string }[] = [
-    ...(!isRegen && selectedTemplate?.minPhotos !== 0
-      ? [
-          {
-            key: 'uploading' as Stage,
-            activeLabel: 'Uploading photos',
-            doneLabel: 'Photos uploaded',
-          },
-        ]
-      : []),
-    ...(generationOptions.image
-      ? [
-          {
-            key: 'generating' as Stage,
-            activeLabel: 'Generating image',
-            doneLabel: 'View Generated Image',
-          },
-        ]
-      : []),
-    ...(generationOptions.caption
-      ? [
-          {
-            key: 'captioning' as Stage,
-            activeLabel: 'Writing caption',
-            doneLabel: 'View Generated Caption',
-          },
-        ]
-      : []),
-    ...(generationOptions.video
-      ? [
-          {
-            key: 'videoing' as Stage,
-            activeLabel: 'Generating video',
-            doneLabel: 'View Generated Video',
-          },
-        ]
-      : []),
-  ]
 
   // ─── Handlers ──────────────────────────────────────────────────────────────
 
@@ -985,7 +841,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       await runGenerationSteps(campaign.id, primaryUrl)
       setStage('done')
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(getErrorMessage(err))
       setStage('error')
     }
   }
@@ -1028,7 +884,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       const { asset_url } = await res.json()
       setResultUrl(`${asset_url}?t=${Date.now()}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(getErrorMessage(err))
     } finally {
       setRegenImageLoading(false)
     }
@@ -1036,22 +892,12 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
 
   function handleDownloadImage() {
     if (!resultUrl) return
-    const a = document.createElement('a')
-    a.href = resultUrl
-    a.download = 'enhanced-product.jpg'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    downloadFile(resultUrl, 'enhanced-product.jpg')
   }
 
   function handleDownloadVideo() {
     if (!videoUrl) return
-    const a = document.createElement('a')
-    a.href = videoUrl
-    a.download = 'campaign-video.mp4'
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
+    downloadFile(videoUrl, 'campaign-video.mp4')
   }
 
   async function handleRegenCaption() {
@@ -1071,7 +917,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       if (!res.ok) throw new Error('Caption regeneration failed')
       setCaptionResult(await res.json())
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(getErrorMessage(err))
     } finally {
       setRegenCaptionLoading(false)
     }
@@ -1097,10 +943,36 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       const { asset_url } = await res.json()
       setVideoUrl(`${asset_url}?t=${Date.now()}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong')
+      setError(getErrorMessage(err))
     } finally {
       setVideoLoading(false)
     }
+  }
+
+  function downloadFile(url: string, filename: string) {
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  function getErrorMessage(err: unknown): string {
+    return err instanceof Error ? err.message : 'Something went wrong'
+  }
+
+  function formatArchiveDate(dateStr: string, includeYear = true): string {
+    const date = new Date(dateStr)
+    const year = date.getFullYear()
+    const currentYear = new Date().getFullYear()
+    return date.toLocaleString(undefined, {
+      month: 'short',
+      day: 'numeric',
+      year: includeYear && year !== currentYear ? 'numeric' : undefined,
+      hour: 'numeric',
+      minute: '2-digit',
+    })
   }
 
   async function handleCopy() {
@@ -1112,34 +984,8 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
   }
 
   function handleDownloadAll() {
-    if (resultUrl) {
-      const a = document.createElement('a')
-      a.href = resultUrl
-      a.download = 'enhanced-product.jpg'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    }
-    if (videoUrl) {
-      const a = document.createElement('a')
-      a.href = videoUrl
-      a.download = 'campaign-video.mp4'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-    }
-    if (captionResult) {
-      const text = `${captionResult.caption}\n\n${captionResult.hashtags.map((h) => `#${h.replace(/^#/, '')}`).join(' ')}`
-      const blob = new Blob([text], { type: 'text/plain' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'caption.txt'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    }
+    if (resultUrl) downloadFile(resultUrl, 'enhanced-product.jpg')
+    if (videoUrl) downloadFile(videoUrl, 'campaign-video.mp4')
   }
 
   async function handleSaveToArchive() {
@@ -1172,7 +1018,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
       const updatedArchives = await fetch('/api/archives').then((r) => (r.ok ? r.json() : []))
       setArchives(updatedArchives)
     } catch (err) {
-      setSaveError(err instanceof Error ? err.message : 'Something went wrong')
+      setSaveError(getErrorMessage(err))
     } finally {
       setSaving(false)
     }
@@ -1226,6 +1072,10 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
             {/* ── Gallery view ─────────────────────────────────────────────── */}
             {!selectedTemplate && (
               <div className="space-y-4">
+                <p className="text-sm text-gray-500">
+                  Choose a template to shape the look of your content — then upload a photo and
+                  we&apos;ll handle the rest.
+                </p>
                 {/* Gallery tabs */}
                 <div className="flex gap-1 rounded-lg bg-gray-100 p-1">
                   {[
@@ -1485,177 +1335,169 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                   )}
                 </div>
 
-                {/* Progress / Output accordion */}
-                {(isLoading || hasOutputs) && progressSteps.length > 0 && (
-                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50">
-                    {progressSteps.map(({ key, activeLabel, doneLabel }, i) => {
-                      const stepIndex = progressSteps.findIndex((s) => s.key === stage)
-                      const isDone = stage === 'done' || i < stepIndex
-                      const isActive = key === stage && isLoading
-                      const isExpanded = expandedOutputs.has(key as ExpandedOutput)
+                {/* Output tabs */}
+                {stage === 'done' && hasOutputs && (
+                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+                    {/* Tab buttons */}
+                    <div className="flex border-b border-gray-200">
+                      <button
+                        onClick={() => setOutputTab('outputs')}
+                        className={[
+                          'flex-1 px-4 py-3 text-sm font-medium transition-colors',
+                          outputTab === 'outputs'
+                            ? 'border-b-2 border-gray-900 text-gray-900'
+                            : 'text-gray-600 hover:text-gray-900',
+                        ].join(' ')}
+                      >
+                        Outputs
+                      </button>
+                      <button
+                        onClick={() => setOutputTab('previews')}
+                        className={[
+                          'flex-1 px-4 py-3 text-sm font-medium transition-colors',
+                          outputTab === 'previews'
+                            ? 'border-b-2 border-gray-900 text-gray-900'
+                            : 'text-gray-600 hover:text-gray-900',
+                        ].join(' ')}
+                      >
+                        Previews
+                      </button>
+                    </div>
 
-                      let outputContent: React.ReactNode = null
-                      let hasOutput = false
-
-                      if (key === 'generating' && resultUrl) {
-                        hasOutput = true
-                        outputContent = (
-                          <div className="flex flex-col gap-3">
-                            <div className="min-h-40 overflow-hidden rounded border bg-white">
-                              <img
-                                src={resultUrl}
-                                alt="Enhanced"
-                                className="h-full w-full object-cover"
-                              />
-                            </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleRegenImage}
-                              disabled={regenImageLoading}
-                              className="w-full"
-                            >
-                              {regenImageLoading ? 'Regenerating...' : 'Regenerate'}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleDownloadImage}
-                              className="w-full"
-                            >
-                              Download
-                            </Button>
-                          </div>
-                        )
-                      } else if (key === 'captioning' && captionResult) {
-                        hasOutput = true
-                        outputContent = (
-                          <div className="flex flex-col gap-3">
-                            <div className="rounded border bg-white p-4">
-                              <p className="mb-4 text-sm leading-relaxed text-gray-800">
-                                {captionResult.caption}
+                    {/* Tab content */}
+                    <div className="p-6">
+                      {outputTab === 'outputs' && (
+                        <div className="space-y-6">
+                          {/* Image output */}
+                          {resultUrl && (
+                            <div>
+                              <p className="mb-3 text-xs font-medium tracking-wide text-gray-500 uppercase">
+                                Image
                               </p>
-                              <div className="flex flex-wrap gap-1">
-                                {captionResult.hashtags.map((tag) => (
-                                  <span
-                                    key={tag}
-                                    className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600"
+                              <div className="space-y-3">
+                                <div className="overflow-hidden rounded border bg-gray-50">
+                                  <img
+                                    src={resultUrl}
+                                    alt="Enhanced"
+                                    className="h-auto w-full object-cover"
+                                  />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRegenImage}
+                                    disabled={regenImageLoading}
+                                    className="flex-1"
                                   >
-                                    #{tag.replace(/^#/, '')}
-                                  </span>
-                                ))}
+                                    {regenImageLoading ? 'Regenerating...' : 'Regenerate'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDownloadImage}
+                                    className="flex-1"
+                                  >
+                                    Download
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleRegenCaption}
-                              disabled={regenCaptionLoading}
-                              className="w-full"
-                            >
-                              {regenCaptionLoading ? 'Regenerating...' : 'Regenerate'}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleCopy}
-                              className="w-full"
-                            >
-                              {copied ? 'Copied!' : 'Copy All'}
-                            </Button>
-                          </div>
-                        )
-                      } else if (key === 'videoing' && videoUrl) {
-                        hasOutput = true
-                        outputContent = (
-                          <div className="flex flex-col gap-3">
-                            <div className="min-h-40 overflow-hidden rounded border bg-white">
-                              <video src={videoUrl} controls className="h-full w-full" />
+                          )}
+
+                          {/* Caption output */}
+                          {captionResult && (
+                            <div>
+                              <div className="mb-3 flex items-center justify-between">
+                                <p className="text-xs font-medium tracking-wide text-gray-500 uppercase">
+                                  Caption
+                                </p>
+                                <button
+                                  onClick={handleCopy}
+                                  className="rounded p-1 hover:bg-gray-100"
+                                  title={copied ? 'Copied!' : 'Copy caption and hashtags'}
+                                >
+                                  <Copy
+                                    size={16}
+                                    className={copied ? 'text-green-600' : 'text-gray-400'}
+                                  />
+                                </button>
+                              </div>
+                              <div className="space-y-3">
+                                <div className="rounded border bg-gray-50 p-4">
+                                  <p className="mb-4 text-sm leading-relaxed text-gray-800">
+                                    {captionResult.caption}
+                                  </p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {captionResult.hashtags.map((tag) => (
+                                      <span
+                                        key={tag}
+                                        className="rounded-full bg-blue-50 px-2 py-0.5 text-xs text-blue-600"
+                                      >
+                                        #{tag.replace(/^#/, '')}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRegenCaption}
+                                    disabled={regenCaptionLoading}
+                                    className="flex-1"
+                                  >
+                                    {regenCaptionLoading ? 'Regenerating...' : 'Regenerate'}
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleRegenVideo}
-                              disabled={videoLoading}
-                              className="w-full"
-                            >
-                              {videoLoading ? 'Regenerating...' : 'Regenerate'}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={handleDownloadVideo}
-                              className="w-full"
-                            >
-                              Download
-                            </Button>
-                          </div>
-                        )
-                      }
+                          )}
 
-                      const displayLabel = isDone && hasOutput ? doneLabel : activeLabel
-
-                      return (
-                        <div key={key}>
-                          <button
-                            onClick={() => {
-                              if (hasOutput) {
-                                setExpandedOutputs((prev) => {
-                                  const next = new Set(prev)
-                                  if (next.has(key as ExpandedOutput))
-                                    next.delete(key as ExpandedOutput)
-                                  else next.add(key as ExpandedOutput)
-                                  return next
-                                })
-                              }
-                            }}
-                            className={[
-                              'flex w-full items-center gap-3 px-4 py-3 text-left text-sm transition-colors duration-300',
-                              i > 0 ? 'border-t border-gray-200' : '',
-                              isActive ? 'animate-pulse bg-blue-50' : '',
-                              hasOutput && !isActive ? 'cursor-pointer hover:bg-gray-100' : '',
-                            ].join(' ')}
-                          >
-                            <span className="flex-shrink-0">
-                              {isDone && <CheckCircle size={15} className="text-green-500" />}
-                              {isActive && (
-                                <Loader2 size={15} className="animate-spin text-blue-500" />
-                              )}
-                              {!isDone && !isActive && (
-                                <Circle size={15} className="text-gray-300" />
-                              )}
-                            </span>
-                            <span
-                              className={
-                                isDone && hasOutput
-                                  ? 'font-semibold text-gray-800'
-                                  : isDone
-                                    ? 'text-gray-500'
-                                    : isActive
-                                      ? 'font-medium text-gray-800'
-                                      : 'text-gray-400'
-                              }
-                            >
-                              {displayLabel}
-                            </span>
-                            {hasOutput && (
-                              <span className="ml-auto flex-shrink-0">
-                                {isExpanded ? (
-                                  <ChevronUp size={15} className="text-gray-400" />
-                                ) : (
-                                  <ChevronDown size={15} className="text-gray-400" />
-                                )}
-                              </span>
-                            )}
-                          </button>
-                          {hasOutput && isExpanded && (
-                            <div className="border-t border-gray-200 bg-white px-4 py-3">
-                              {outputContent}
+                          {/* Video output */}
+                          {videoUrl && (
+                            <div>
+                              <p className="mb-3 text-xs font-medium tracking-wide text-gray-500 uppercase">
+                                Video
+                              </p>
+                              <div className="space-y-3">
+                                <div className="overflow-hidden rounded border bg-gray-50">
+                                  <video src={videoUrl} controls className="h-auto w-full" />
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleRegenVideo}
+                                    disabled={videoLoading}
+                                    className="flex-1"
+                                  >
+                                    {videoLoading ? 'Regenerating...' : 'Regenerate'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDownloadVideo}
+                                    className="flex-1"
+                                  >
+                                    Download
+                                  </Button>
+                                </div>
+                              </div>
                             </div>
                           )}
                         </div>
-                      )
-                    })}
+                      )}
+
+                      {outputTab === 'previews' && (resultUrl || videoUrl) && (
+                        <SocialMockups
+                          imageUrl={resultUrl}
+                          videoUrl={videoUrl}
+                          caption={captionResult?.caption}
+                          hashtags={captionResult?.hashtags}
+                        />
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -1666,58 +1508,44 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                 )}
 
                 {error && <p className="text-sm text-red-600">{error}</p>}
+
+                {/* Action bar */}
+                {stage === 'done' && hasOutputs && (
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={() => {
+                        setSaveError('')
+                        setSaveModalOpen(true)
+                      }}
+                      className="flex-1"
+                    >
+                      Save to Archive
+                    </Button>
+                    <Button onClick={handleDownloadAll} variant="outline" className="flex-1">
+                      Download
+                    </Button>
+                    <Button
+                      onClick={handleNewCampaign}
+                      disabled={isLoading}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      New Campaign
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
           </Card>
-
-          {/* Action buttons */}
-          {hasOutputs && (
-            <Card className="overflow-visible p-6">
-              <p className="mb-3 text-xs font-medium tracking-wide text-gray-500 uppercase">
-                Next Actions
-              </p>
-              <div className="space-y-2">
-                {ACTION_TOOLTIPS.map(({ label, tip }) => {
-                  let onClick: () => void
-                  let disabled = false
-                  let primary = false
-
-                  if (label === 'Save to Archive') {
-                    onClick = () => {
-                      setSaveError('')
-                      setSaveModalOpen(true)
-                    }
-                    primary = true
-                  } else if (label === 'Download All') {
-                    onClick = handleDownloadAll
-                  } else {
-                    onClick = handleNewCampaign
-                    disabled = isLoading
-                  }
-
-                  return (
-                    <div key={label} className="flex items-center gap-2">
-                      <Button
-                        onClick={onClick}
-                        disabled={disabled}
-                        variant={primary ? 'default' : 'outline'}
-                        className="flex-1"
-                      >
-                        {label}
-                      </Button>
-                      <TooltipIcon tip={tip} />
-                    </div>
-                  )
-                })}
-              </div>
-            </Card>
-          )}
         </div>
       )}
 
       {/* Archives tab */}
       {activeTab === 'archives' && (
         <div className="space-y-4">
+          <p className="text-sm text-gray-500">
+            Saved campaigns. Download assets or revisit past content any time.
+          </p>
           {archives.length === 0 ? (
             <Card className="p-6">
               <p className="text-center text-gray-500">
@@ -1727,16 +1555,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
           ) : (
             <div className="grid gap-4">
               {archives.map((archive) => {
-                const created = new Date(archive.created_at).toLocaleString(undefined, {
-                  month: 'short',
-                  day: 'numeric',
-                  year:
-                    archive.created_at.split('-')[0] !== new Date().getFullYear().toString()
-                      ? 'numeric'
-                      : undefined,
-                  hour: 'numeric',
-                  minute: '2-digit',
-                })
+                const created = formatArchiveDate(archive.created_at)
                 return (
                   <Card key={archive.id} className="overflow-hidden p-6">
                     <div className="flex gap-4">
@@ -1827,12 +1646,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                     <ul className="space-y-1">
                       {archives.map((a) => {
                         const isExpanded = expandedModalArchiveId === a.id
-                        const created = new Date(a.created_at).toLocaleString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: 'numeric',
-                          minute: '2-digit',
-                        })
+                        const created = formatArchiveDate(a.created_at, false)
                         return (
                           <li key={a.id} className="rounded border border-gray-200 bg-white">
                             <div className="flex items-center gap-2 px-2 py-1.5">

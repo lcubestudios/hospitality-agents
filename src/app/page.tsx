@@ -13,7 +13,9 @@ export default async function Home() {
   const supabase = await getAuthedSupabaseAdmin()
   const { data: brand } = await supabase
     .from('brands')
-    .select('id, name, description, brand_voice')
+    .select(
+      'id, name, description, brand_voice, business_type, food_drink_type, location, atmosphere, personality',
+    )
     .eq('id', session.brandId)
     .single()
 
@@ -32,6 +34,11 @@ export default async function Home() {
         name: brand.name,
         description: brand.description ?? '',
         brand_voice: brand.brand_voice ?? '',
+        business_type: brand.business_type ?? '',
+        food_drink_type: brand.food_drink_type ?? '',
+        location: brand.location ?? '',
+        atmosphere: brand.atmosphere ?? [],
+        personality: brand.personality ?? [],
       }}
     />
   )

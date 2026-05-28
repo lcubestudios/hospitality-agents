@@ -16,6 +16,11 @@ interface AppShellProps {
     name: string
     description: string
     brand_voice: string
+    business_type: string
+    food_drink_type: string
+    location: string
+    atmosphere: string[]
+    personality: string[]
   }
 }
 
@@ -52,14 +57,29 @@ export function AppShell({ brand }: AppShellProps) {
           {/* Campaign Creator view */}
           {activeView === 'campaign-creator' && (
             <div className="space-y-6">
-              <h2 className="text-2xl font-bold text-gray-800">Campaign Creator</h2>
+              <div>
+                <h2 className="mb-1 text-2xl font-bold text-gray-900">Campaign Creator</h2>
+                <p className="text-sm text-gray-500">
+                  Upload a photo, pick a style, and get a campaign-ready image, caption, and video —
+                  tailored to your brand.
+                </p>
+              </div>
               <CampaignCreator brandId={brand.id} />
             </div>
           )}
 
           {/* Settings view */}
           {activeView === 'brand' && (
-            <BrandPanel id={brand.id} name={brand.name} description={brand.description} />
+            <BrandPanel
+              id={brand.id}
+              name={brand.name}
+              description={brand.description}
+              business_type={brand.business_type}
+              food_drink_type={brand.food_drink_type}
+              location={brand.location}
+              atmosphere={brand.atmosphere}
+              personality={brand.personality}
+            />
           )}
         </div>
       </main>

@@ -137,12 +137,14 @@ export function buildFallbackBrief(postTopic: string, visualStyle?: VisualStyle)
 export function buildVisionPrompt({
   brandName,
   brandVoice,
+  brandProfile,
   postTopic,
   visualStyle,
   promptIntent,
 }: {
   brandName: string
   brandVoice: string
+  brandProfile?: string
   postTopic: string
   visualStyle?: VisualStyle
   promptIntent?: string
@@ -172,10 +174,12 @@ export function buildVisionPrompt({
           ? `\nCreative mode: ENHANCED. This is a high-end retoucher pass — the level of work a master retoucher applies to a RAW file before publication. Scene is LOCKED: same surface, same background, same composition, same plating, same garnish, same item count, same light direction. The improvement is technical, not creative: physically accurate re-lighting that preserves direction but fixes balance, reconstructed specular highlights, recovered shadow detail without flattening contrast, true optical subject/background separation, surface micro-texture rendered with material accuracy, corrected white balance and color casts, atmospheric depth between hero and background. Do NOT add drama, mood shifts, atmospheric elements, or stylization that were not present in the original. The result is the same photo, finished beyond what phone editing can produce.\n`
           : ''
 
+  const profileBlock = brandProfile ? `\n${brandProfile}` : ''
+
   return `You are a professional cinematographer and creative director analyzing an uploaded food or drink photo for a premium Instagram campaign reshoot.
 
 Brand: ${brandName || 'not specified'}
-Brand voice: ${brandVoice || 'not specified'}
+Brand voice: ${brandVoice || 'not specified'}${profileBlock}
 Post topic: ${postTopic || 'not specified'}${templateBlock}${modeBlock}${styleBlock}
 
 Your job is to create a Director's Brief for downstream image and video generation.
@@ -706,13 +710,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const { data: brand } = campaign
       ? await supabase
           .from('brands')
-          .select('name, description, brand_voice')
+          .select(
+            'name, description, brand_voice, business_type, food_drink_type, atmosphere, personality',
+          )
           .eq('id', campaign.brand_id)
           .single()
       : { data: null }
 
     const brandName = brand?.name ?? ''
     const brandVoice = brand?.brand_voice ?? ''
+    const brandProfileLines = [
+      brand?.business_type && `Venue type: ${brand.business_type}`,
+      brand?.food_drink_type && `Food & drink focus: ${brand.food_drink_type}`,
+      brand?.atmosphere?.length && `Atmosphere: ${brand.atmosphere.join(', ')}`,
+      brand?.personality?.length && `Personality: ${brand.personality.join(', ')}`,
+    ].filter(Boolean)
+    const brandProfile = brandProfileLines.join('\n')
 
     // STEP 1: Vision analysis — Director's Brief
     let brief: DirectorBrief = buildFallbackBrief(postTopic, visualStyle)
@@ -752,6 +765,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                     text: buildVisionPrompt({
                       brandName,
                       brandVoice,
+                      brandProfile,
                       postTopic,
                       visualStyle,
                       promptIntent,

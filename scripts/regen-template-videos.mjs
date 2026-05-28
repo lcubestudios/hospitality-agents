@@ -10,54 +10,30 @@ const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 const outDir = resolve(root, 'public/templates')
 mkdirSync(outDir, { recursive: true })
 
-const refImageBase64 = readFileSync(resolve(outDir, 'hero-close-up.jpg')).toString('base64')
-const refImageMime = 'image/jpeg'
-
-// Corrected prompts — explicit, unambiguous camera direction
 const VIDEOS = [
   {
-    id: 'top-down-pan',
-    prompt: `Strictly overhead flat-lay shot. The camera is positioned directly above the dish pointing straight down — a pure bird's-eye view. You see the top surface of the seared salmon fillet on a dark slate surface from above, as if shot from directly overhead like a drone or overhead camera rig. The camera does not tilt or angle at any point.
-The camera performs a slow, smooth lateral pan: moving from left to right across the dish while staying at the same overhead height. The overhead perspective is maintained throughout the entire clip.
-Camera movement: lateral pan only — strictly sideways, no angle change, no vertical movement, no zoom.
-9:16 vertical portrait. Zero text, watermarks, or overlays. Silent.`,
-  },
-  {
-    id: 'ambient-motion',
-    prompt: `Completely static camera — the camera does not move at all. No zoom, no pan, no tilt, no drift, no pull back. Fixed in place for the full duration.
-The frame shows the complete seared salmon fillet with herb crust on a dark slate surface at a normal shooting distance — the full dish is visible, not zoomed into a detail.
-The only motion in the entire clip comes from within the scene: wisps of delicate steam rising naturally and gently from the hot surface of the salmon fillet, drifting slowly upward. Nothing else moves.
-9:16 vertical portrait. Zero text, watermarks, or overlays. Silent.`,
-  },
-  {
-    id: 'loop',
-    prompt: `Seamlessly looping clip. The camera makes a very slow, minimal lateral drift — moving gently 1 to 2 inches from left to right over 4 seconds. The motion is so subtle it is barely perceptible. No zoom. No vertical movement. No push or pull toward the dish. No camera rotation.
-The composition is essentially identical at the beginning and end of the clip, so it loops invisibly. The seared salmon fillet fills the center of the frame throughout.
-Camera movement: tiny lateral drift only. No zoom whatsoever.
-9:16 vertical portrait. Zero text, watermarks, or overlays. Silent.`,
-  },
-  {
     id: 'dining-moment',
-    prompt: `Gentle, smooth pull-back shot in a warm restaurant setting. The camera begins closer to the seared salmon fillet on a white plate and smoothly pulls straight back over 4 seconds to reveal the full dining scene: the plate with the herb-crusted salmon, a wine glass to the side in soft focus, silverware, a folded linen napkin, and warm candlelight glowing in a restaurant interior.
-The pull-back is slow, continuous, and smooth — observational, like noticing the dish arrive at a candlelit dinner table. The final frame shows the complete, beautiful dining scene.
-Camera movement: steady backward pull only. No lateral drift. No pan.
+    refImage: 'hero-close-up.jpg',
+    prompt: `Warm candlelit restaurant scene. The camera starts close to the seared salmon on a white plate, dish centered vertically in the frame. The camera performs a slow, smooth pull-back over 6 seconds, gradually revealing the full dining table: wine glass in soft focus to the side, silverware, folded linen napkin, warm candlelight glowing in the restaurant interior. The dish remains centered vertically throughout the pull-back.
+This is a physical camera dolly move backward — focal length stays constant, only the camera body moves back. No optical zoom-out. Slow, smooth, elegant motion.
+Camera: steady backward dolly pull only. No lateral drift. No zoom. Dish centered vertically throughout.
 9:16 vertical portrait. Zero text, watermarks, or overlays. Silent.`,
   },
 ]
 
 async function submitJob(tpl) {
+  const instance = { prompt: tpl.prompt }
+  if (tpl.refImage) {
+    const refBase64 = readFileSync(resolve(outDir, tpl.refImage)).toString('base64')
+    instance.image = { bytesBase64Encoded: refBase64, mimeType: 'image/jpeg' }
+  }
   const res = await fetch(
     `${BASE_URL}/models/veo-3.0-fast-generate-001:predictLongRunning?key=${GOOGLE_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        instances: [
-          {
-            prompt: tpl.prompt,
-            image: { bytesBase64Encoded: refImageBase64, mimeType: refImageMime },
-          },
-        ],
+        instances: [instance],
         parameters: { aspectRatio: '9:16', durationSeconds: 8 },
       }),
     },

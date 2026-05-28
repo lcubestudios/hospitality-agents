@@ -37,25 +37,13 @@ const TEMPLATES = [
     prompt: `Professional fine-dining food photography. ${SUBJECT} plated with precision on a wide white ceramic plate. Fine-dining presentation: intentional negative space on the plate, precisely placed herb garnish, sauce swipe executed with a spoon. Three-quarter overhead angle. The entire plate visible, nothing cropped. Magazine editorial finish. 9:16 vertical format.`,
   },
   {
-    id: 'ingredient-focus',
-    prompt: `Professional macro food photography. Extreme tight close-up on the herb crust of ${SUBJECT}. A single ingredient isolated: the textured crust of chopped parsley, dill, and breadcrumbs on the fish surface. Fills the frame completely. Background falls to near-abstract bokeh. Maximum texture and detail. Commercial editorial finish. 9:16 vertical format.`,
-  },
-  {
     id: 'someone-eating',
-    prompt: `Professional food photography. ${SUBJECT} mid-consumption: a portion has been eaten, a fork rests in the remaining fish. No hands in frame. No people. The eating moment is implied through dish state only — the fork position and the eaten portion create tension and craving. Three-quarter angle. Commercial editorial finish. 9:16 vertical format.`,
+    prompt: `Professional lifestyle food photography. ${SUBJECT} on a wide white ceramic plate. A person's hands are naturally visible — one holding a fork, the other a knife — hovering above the fish in a relaxed grip, about to take the first bite. Candid, warm, not staged. Soft restaurant lighting, shallow depth of field. The kind of photo someone posts to Instagram after a nice dinner. 9:16 vertical format.`,
   },
   // Video templates (representative still frames)
   {
     id: 'slow-reveal',
     prompt: `Professional food photography. ${SUBJECT} shot from a dramatically low angle, the dish partially obscured by a shallow depth-of-field foreground element — the near edge of the plate, a blurred herb stem. The reveal is imminent but not yet complete. Cinematic, anticipatory composition. Commercial editorial finish. 9:16 vertical format.`,
-  },
-  {
-    id: 'top-down-pan',
-    prompt: `Professional food photography. ${SUBJECT} shot from directly overhead. Pure flat lay. Single dish centered on a dark slate surface with scattered fresh herbs around it. Clean, editorial overhead composition as if a camera were about to pan across it. Commercial editorial finish. 9:16 vertical format.`,
-  },
-  {
-    id: 'ambient-motion',
-    prompt: `Professional food photography. ${SUBJECT} still and centered. Delicate wisps of steam rising naturally from the hot fish surface. The air above the dish has visible atmospheric texture — soft light catching the steam. Near-static scene, all motion in the atmosphere. Commercial editorial finish. 9:16 vertical format.`,
   },
   {
     id: 'side-pass',

@@ -33,10 +33,7 @@ export default function LoginPage() {
       const res = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          brand_name: brandName,
-          password: password,
-        }),
+        body: JSON.stringify({ brand_name: brandName, password }),
       })
 
       const data = await res.json()
@@ -56,10 +53,13 @@ export default function LoginPage() {
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
-      <Card className="max-w-sm p-6">
-        <h1 className="mb-6 text-2xl font-bold">Login</h1>
+      <Card className="w-full max-w-sm p-8">
+        <h1 className="mb-1 text-2xl font-bold text-gray-900">Welcome to DOTS</h1>
+        <p className="mb-6 text-sm text-gray-500">
+          AI-powered content tools for food &amp; beverage operators.
+        </p>
 
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} className="space-y-5">
           <div>
             <Label htmlFor="brand-name">Username</Label>
             <Input
@@ -93,7 +93,7 @@ export default function LoginPage() {
               onChange={(e) => setRememberMe(e.target.checked)}
               className="h-4 w-4 rounded border-gray-300"
             />
-            <Label htmlFor="remember-me" className="mb-0 text-sm font-normal text-gray-600">
+            <Label htmlFor="remember-me" className="mb-0 text-sm font-normal text-gray-500">
               Remember me
             </Label>
           </div>
@@ -101,13 +101,16 @@ export default function LoginPage() {
           {error && <p className="text-sm text-red-600">{error}</p>}
 
           <Button type="submit" disabled={loading} className="w-full">
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>
 
-        <p className="mt-4 text-center text-sm text-gray-600">
+        <p className="mt-6 text-center text-sm text-gray-500">
           Don&apos;t have an account?{' '}
-          <a href="/auth/signup" className="font-medium text-blue-600 hover:underline">
+          <a
+            href="/auth/signup"
+            className="font-medium text-gray-900 underline underline-offset-2 hover:text-gray-700"
+          >
             Sign up
           </a>
         </p>

@@ -52,8 +52,11 @@ const AGENTS = [
 export function AgentGrid({ onSelectAgent }: { onSelectAgent: (agentId: string) => void }) {
   return (
     <div>
-      <h1 className="mb-2 text-3xl font-bold text-gray-800">Agents</h1>
-      <p className="mb-8 text-gray-600">Select an agent to get started</p>
+      <h1 className="mb-2 text-2xl font-bold text-gray-900">Agents</h1>
+      <p className="mb-8 text-sm text-gray-500">
+        Each agent automates a different part of running your venue. Start with Campaign Creator to
+        generate photos, videos, and captions tailored to your brand.
+      </p>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         {AGENTS.map((agent) => {
