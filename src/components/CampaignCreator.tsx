@@ -1061,7 +1061,10 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Archives ({archives.length})
+          Archives{' '}
+          <span className={archives.length >= 5 ? 'text-amber-600' : ''}>
+            ({archives.length}/5)
+          </span>
         </button>
       </div>
 
