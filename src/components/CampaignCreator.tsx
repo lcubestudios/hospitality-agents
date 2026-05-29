@@ -1339,7 +1339,7 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                 </div>
 
                 {/* Loading state */}
-                {isGenerating && (
+                {isLoading && (
                   <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-6">
                     <div className="space-y-4">
                       <div className="flex items-center gap-3">
