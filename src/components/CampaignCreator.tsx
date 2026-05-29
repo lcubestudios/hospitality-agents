@@ -148,14 +148,14 @@ const PHOTO_TEMPLATES: TemplateConfig[] = [
     examplePreview: '/templates/editorial-plate.jpg',
     exampleType: 'image',
     promptIntent:
-      'Magazine editorial composition. Intentional negative space, precise plating, designed light.',
+      'Same dish, magazine-quality photography. Superior lighting, color, and composition — food arrangement preserved exactly as photographed.',
     minPhotos: 1,
     maxPhotos: 1,
     requiredInputs: [
       {
         id: 'dish',
         label: 'Dish photo',
-        description: 'The dish to restage in editorial style',
+        description: 'The dish to photograph in editorial style',
         required: true,
       },
     ],

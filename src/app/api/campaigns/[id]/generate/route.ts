@@ -367,6 +367,10 @@ function buildGeminiPrompt({
 Maximum intimacy with the hero dish. Fill the frame — the food itself is the entire world.
 Food subject: ${subjectAnchor}
 
+[DISH GEOMETRY — LOCKED]
+The food arrangement from the reference photo is preserved. Do not rearrange, restage, or add plating elements not in the original.
+What changes: framing tightens, depth of field deepens, lighting sharpens. The food itself does not change.
+
 [COMPOSITION]
 Framing: Tight three-quarter overhead or straight-on. Dish fills 80%+ of the frame. Background compressed by lens.
 Focal point: One dominant element — the most texturally rich part of the dish. Everything else serves it.
@@ -387,7 +391,7 @@ No lifestyle props. No wine glasses, no cutlery unless already plated. No hands.
 The dish is the only subject. No environment beyond the immediate plate or bowl.
 No warped food geometry. No surreal elements. No text or overlays.
 
-Directive: ${brief.image_final_prompt} Hero close-up — maximum intimacy, food fills the frame.`
+Directive: ${brief.image_final_prompt} Hero close-up — maximum intimacy, food fills the frame. Dish arrangement locked.`
   }
 
   if (photoTemplate === 'top-down-spread') {
@@ -450,38 +454,44 @@ Directive: ${brief.image_final_prompt} In-setting — dish as hero in its natura
 
   if (photoTemplate === 'editorial-plate') {
     return `${templateDirective}[SHOT GOAL]
-Fine-dining level plating photography — the plate is the canvas, the food arrangement is the art.
+Editorial photography of the dish as-is — same food, elevated to magazine quality through superior photography.
 Food subject: ${subjectAnchor}
 
+[DISH GEOMETRY — LOCKED]
+The food arrangement from the reference photo is preserved exactly. Do not deconstruct, separate, rearrange, or restage food components.
+Do not impose fine-dining styling on food that isn't fine-dining. A burger stays a burger. A pizza stays a pizza.
+What changes: lighting quality, color grade, background depth, surface material. The food itself does not change.
+
 [COMPOSITION]
-Framing: Three-quarter overhead or elegant slight angle. The entire plate and its composition are visible. No cropping into the plate.
-Rule: Fine-dining precision — white space on the plate is intentional. Every plating element is deliberate.
-The plate edge and its negative space are part of the composition.
+Framing: Three-quarter overhead or elegant slight angle. Full dish clearly visible. Plate not cropped by frame edges.
+The plate edge and surrounding negative space contribute to editorial feel — but food on the plate is as in the reference.
 
 [IN FRAME]
-The plate and the precise arrangement of food on it.
-Surface visible at the edges — secondary to the plate composition.
-No other elements compete with the plating.
+The dish exactly as photographed — primary components, garnish, and plating arrangement preserved.
+Surface visible at the edges. No competing elements.
 
 [FRAMING RULES]
-The plating arrangement is the hero — frame it to show the chef's intent.
+Frame to reveal the dish at its most compelling angle. Surface and depth of field create the editorial quality.
 Plate must not be cropped by the frame edges.
 
 ${qualityLayer}
 
 [GUARDRAILS]
-No added lifestyle props. No utensils unless already plated. No hands.
-No napkins, glasses, or tablecloth details in primary focus.
+No added lifestyle props. No utensils unless already present in reference. No hands.
 No warped food geometry. No text or overlays.
-The plate and its food are the entire subject.
+Do not add fine-dining plating elements (swooshes, microgreens, dots) that are not in the original.
+The dish arrangement is the only version — photograph it beautifully, do not restyle it.
 
-Directive: ${brief.image_final_prompt} Editorial plate — fine-dining plating as the compositional art.`
+Directive: ${brief.image_final_prompt} Editorial plate — same dish, magazine-level photography. Food arrangement locked.`
   }
 
   if (photoTemplate === 'ingredient-focus') {
     return `${templateDirective}[SHOT GOAL]
 A single ingredient or component isolated and elevated — hero-level close-up on one element.
-Food subject: ${subjectAnchor} — isolate the most visually compelling component.
+Food subject: ${subjectAnchor} — isolate the most visually compelling component already present in the dish.
+
+[DISH GEOMETRY — LOCKED]
+Do not add, remove, or rearrange food components not in the reference. Isolate and zoom into what is already there.
 
 [COMPOSITION]
 Framing: Tight macro. The single hero ingredient fills a significant portion of the frame.
