@@ -1338,6 +1338,27 @@ export function CampaignCreator({ brandId }: { brandId: string }) {
                   )}
                 </div>
 
+                {/* Loading state */}
+                {isGenerating && (
+                  <div className="overflow-hidden rounded-lg border border-gray-200 bg-white p-6">
+                    <div className="space-y-4">
+                      <div className="flex items-center gap-3">
+                        <div className="inline-flex h-5 w-5 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+                        <p className="text-sm font-medium text-gray-900 capitalize">
+                          {stage === 'uploading' && 'Uploading image...'}
+                          {stage === 'generating' && 'Generating image...'}
+                          {stage === 'captioning' && 'Writing captions...'}
+                          {stage === 'videoing' && 'Creating videos...'}
+                        </p>
+                      </div>
+                      <div className="space-y-3">
+                        <div className="h-48 animate-pulse rounded bg-gray-100" />
+                        <div className="h-4 w-3/4 animate-pulse rounded bg-gray-100" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 {/* Output tabs */}
                 {stage === 'done' && hasOutputs && (
                   <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
