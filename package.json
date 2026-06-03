@@ -32,7 +32,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.8.0",
-    "next": "16.2.4",
+    "next": "16.2.7",
     "radix-ui": "^1.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -52,7 +52,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.4",
+    "eslint-config-next": "16.2.7",
     "eslint-config-prettier": "^10.1.8",
     "husky": "^9.1.7",
     "lint-staged": "^16.4.0",
@@ -62,5 +62,16 @@
     "shadcn": "^4.4.0",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": ">=3.1.2",
+      "hono": ">=4.12.18",
+      "ip-address": ">=10.1.1",
+      "postcss": ">=8.5.10",
+      "ws": ">=8.20.1",
+      "brace-expansion": ">=5.0.6",
+      "qs": ">=6.15.2"
+    }
   }
 }
