@@ -60,6 +60,11 @@ interface GenerationResultPayload {
   assets: GeneratedAsset[]
 }
 
+function parseUploadedImage(text: string): string | null {
+  const match = text.match(/\[Uploaded image: (.*?)\]/)
+  return match?.[1] || null
+}
+
 /**
  * Parse a message text for an embedded generation_result JSON block.
  * Returns { payload, prefix, suffix } if found, or null if the message
@@ -444,14 +449,27 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
     if (isUploading) return
 
     const imageUrl = stagedImageUrlRef.current
+    const imageSrc = stagedImage
+
+    // If there's an image, add a synthetic user message showing it first
+    if (imageUrl && imageSrc) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: generateId(),
+          role: 'user' as const,
+          parts: [
+            {
+              type: 'text' as const,
+              text: `[Uploaded image: ${imageUrl}]`,
+            },
+          ],
+        },
+      ])
+    }
 
     sendMessage(
-      {
-        text: trimmed || '(photo attached)',
-        ...(imageUrl
-          ? { experimental_attachments: [{ url: imageUrl, contentType: 'image/jpeg' }] }
-          : {}),
-      },
+      { text: trimmed || '(photo attached)' },
       {
         body: {
           mode: modeRef.current,
@@ -520,8 +538,7 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
               const hasTriggerTool = msg.parts.some((p) => p.type === 'tool-trigger_generation')
               if (hasTriggerTool && !textContent) return null
 
-              const attachments =
-                msg.experimental_attachments || (msg as Record<string, unknown>).attachments || []
+              const uploadedImageUrl = parseUploadedImage(textContent)
 
               return (
                 <div
@@ -534,23 +551,22 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
                 >
                   {msg.role === 'user' ? (
                     <div className="flex flex-col gap-2">
-                      {attachments.length > 0 && (
-                        <div className="grid max-w-[80%] grid-cols-2 gap-2">
-                          {attachments.map((att, i) => (
-                            <div key={i} className="overflow-hidden rounded-lg">
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                src={(att as Record<string, unknown>).url as string}
-                                alt="uploaded"
-                                className="h-24 w-full object-cover"
-                              />
-                            </div>
-                          ))}
+                      {uploadedImageUrl && (
+                        <div className="max-w-[80%] overflow-hidden rounded-lg">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={uploadedImageUrl}
+                            alt="uploaded"
+                            className="w-full rounded-lg object-cover"
+                            style={{ maxHeight: '200px' }}
+                          />
                         </div>
                       )}
-                      <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
-                        {textContent}
-                      </div>
+                      {textContent && !uploadedImageUrl && (
+                        <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
+                          {textContent}
+                        </div>
+                      )}
                     </div>
                   ) : parseGenerationResult(textContent) ? (
                     <div className="w-full max-w-[85%]">
