@@ -3,7 +3,17 @@
 import { useChat } from '@ai-sdk/react'
 import { DefaultChatTransport, type UIMessage, generateId } from 'ai'
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react'
-import { Send, Paperclip, X, AlertCircle, Download, Loader2 } from 'lucide-react'
+import {
+  Send,
+  Paperclip,
+  X,
+  AlertCircle,
+  Download,
+  Loader2,
+  Bookmark,
+  Check,
+  ZoomIn,
+} from 'lucide-react'
 
 export type ChatMode = 'quick' | 'campaign'
 
@@ -57,6 +67,7 @@ interface GeneratedAsset {
 
 interface GenerationResultPayload {
   type: 'generation_result'
+  campaignId: string
   assets: GeneratedAsset[]
 }
 
@@ -114,11 +125,74 @@ function parseGenerationResult(text: string): {
   }
 }
 
-function AssetCard({ asset }: { asset: GeneratedAsset }) {
+// ─── Lightbox ──────────────────────────────────────────────────────────────────
+
+interface LightboxProps {
+  url: string
+  caption: string
+  onClose: () => void
+}
+
+function Lightbox({ url, caption, onClose }: LightboxProps) {
+  useEffect(() => {
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', handleKey)
+    return () => document.removeEventListener('keydown', handleKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+      onClick={onClose}
+    >
+      <button
+        onClick={onClose}
+        className="absolute top-4 right-4 flex h-9 w-9 cursor-pointer items-center justify-center rounded-full bg-white/10 text-white transition-colors hover:bg-white/20"
+        aria-label="Close"
+      >
+        <X size={18} />
+      </button>
+      <div
+        className="flex flex-col items-center gap-3"
+        onClick={(e) => e.stopPropagation()}
+        style={{ maxWidth: '90vw', maxHeight: '90vh' }}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt={caption}
+          className="rounded-xl object-contain shadow-2xl"
+          style={{ maxWidth: '90vw', maxHeight: 'calc(90vh - 3rem)' }}
+        />
+        {caption && (
+          <p
+            className="text-center text-sm leading-relaxed text-white/70"
+            style={{ maxWidth: '60ch' }}
+          >
+            {caption}
+          </p>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function AssetCard({
+  asset,
+  campaignId,
+  onExpand,
+}: {
+  asset: GeneratedAsset
+  campaignId: string
+  onExpand: () => void
+}) {
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved'>('idle')
+
   function handleDownload() {
     const a = document.createElement('a')
     a.href = asset.url
-    // Derive a filename from the URL, fall back to 'asset'
     a.download = asset.url.split('/').pop()?.split('?')[0] ?? 'asset'
     a.target = '_blank'
     a.rel = 'noopener noreferrer'
@@ -127,24 +201,86 @@ function AssetCard({ asset }: { asset: GeneratedAsset }) {
     document.body.removeChild(a)
   }
 
+  async function handleSave() {
+    if (saveState !== 'idle') return
+    setSaveState('saving')
+    try {
+      const res = await fetch('/api/assets/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_id: campaignId, asset_url: asset.url }),
+      })
+      if (!res.ok) throw new Error('Save failed')
+      setSaveState('saved')
+    } catch {
+      setSaveState('idle')
+    }
+  }
+
   return (
     <div className="border-border bg-card overflow-hidden rounded-xl border shadow-sm">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={asset.url}
-        alt={asset.caption}
-        className="w-full object-cover"
-        style={{ maxHeight: '280px' }}
-      />
+      <button
+        onClick={onExpand}
+        className="group relative w-full cursor-zoom-in"
+        aria-label="Expand image"
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={asset.url}
+          alt={asset.caption}
+          className="w-full object-cover"
+          style={{ maxHeight: '280px' }}
+        />
+        <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+          <ZoomIn
+            size={22}
+            className="text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100"
+          />
+        </div>
+      </button>
       <div className="flex items-start justify-between gap-3 px-4 py-3">
         <p className="text-caption text-muted-foreground flex-1 leading-relaxed">{asset.caption}</p>
-        <button
-          onClick={handleDownload}
-          className="border-border bg-background text-caption text-foreground hover:border-primary/40 hover:text-primary flex flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 font-medium transition-colors"
-        >
-          <Download size={12} />
-          Download
-        </button>
+        <div className="flex flex-shrink-0 items-center gap-1.5">
+          {/* Save button */}
+          <button
+            onClick={handleSave}
+            disabled={saveState !== 'idle'}
+            className={[
+              'border-border bg-background text-caption flex cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 font-medium transition-colors',
+              saveState === 'saved'
+                ? 'cursor-default border-green-200 bg-green-50 text-green-700'
+                : saveState === 'saving'
+                  ? 'text-foreground cursor-not-allowed opacity-60'
+                  : 'text-foreground hover:border-primary/40 hover:text-primary',
+            ].join(' ')}
+            title={saveState === 'saved' ? 'Already saved' : 'Save to your library'}
+          >
+            {saveState === 'saved' ? (
+              <>
+                <Check size={12} />
+                Saved
+              </>
+            ) : saveState === 'saving' ? (
+              <>
+                <Loader2 size={12} className="animate-spin" />
+                Saving
+              </>
+            ) : (
+              <>
+                <Bookmark size={12} />
+                Save
+              </>
+            )}
+          </button>
+          {/* Download button */}
+          <button
+            onClick={handleDownload}
+            className="border-border bg-background text-caption text-foreground hover:border-primary/40 hover:text-primary flex flex-shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border px-3 py-1.5 font-medium transition-colors"
+          >
+            <Download size={12} />
+            Download
+          </button>
+        </div>
       </div>
     </div>
   )
@@ -152,22 +288,38 @@ function AssetCard({ asset }: { asset: GeneratedAsset }) {
 
 function GenerationResultBlock({ text }: { text: string }) {
   const parsed = parseGenerationResult(text)
+  const [lightboxAsset, setLightboxAsset] = useState<GeneratedAsset | null>(null)
+
   if (!parsed) return null
 
   const { payload, prefix, suffix } = parsed
 
   return (
-    <div className="space-y-3">
-      {prefix && <p className="text-foreground text-sm leading-relaxed">{prefix}</p>}
-      {payload.assets.length > 0 && (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          {payload.assets.map((asset, i) => (
-            <AssetCard key={i} asset={asset} />
-          ))}
-        </div>
+    <>
+      <div className="space-y-3">
+        {prefix && <p className="text-foreground text-sm leading-relaxed">{prefix}</p>}
+        {payload.assets.length > 0 && (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {payload.assets.map((asset, i) => (
+              <AssetCard
+                key={i}
+                asset={asset}
+                campaignId={payload.campaignId}
+                onExpand={() => setLightboxAsset(asset)}
+              />
+            ))}
+          </div>
+        )}
+        {suffix && <p className="text-foreground text-sm leading-relaxed">{suffix}</p>}
+      </div>
+      {lightboxAsset && (
+        <Lightbox
+          url={lightboxAsset.url}
+          caption={lightboxAsset.caption}
+          onClose={() => setLightboxAsset(null)}
+        />
       )}
-      {suffix && <p className="text-foreground text-sm leading-relaxed">{suffix}</p>}
-    </div>
+    </>
   )
 }
 
@@ -194,6 +346,10 @@ interface PendingGeneration {
   postTopic: string
   campaignMode: 'social' | 'ads'
   vibe?: string
+  campaignTheme?: string
+  startDate?: string
+  endDate?: string
+  postingFrequency?: string
 }
 
 interface GenerationResult {
@@ -209,6 +365,10 @@ interface TriggerGenerationResult {
     image_url?: string
     campaign_mode?: 'social' | 'ads'
     vibe?: string
+    campaign_theme?: string
+    start_date?: string
+    end_date?: string
+    posting_frequency?: string
   }
   error?: string
 }
@@ -260,8 +420,33 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
     })
   }, [])
 
+  const openingMessage: UIMessage = useMemo(
+    () => ({
+      id: 'opening',
+      role: 'assistant',
+      content:
+        mode === 'campaign'
+          ? "What's the campaign for? Tell me the occasion, theme, or launch you're planning around."
+          : 'What do you want to post about today?',
+      parts: [
+        {
+          type: 'text',
+          text:
+            mode === 'campaign'
+              ? "What's the campaign for? Tell me the occasion, theme, or launch you're planning around."
+              : 'What do you want to post about today?',
+        },
+      ],
+      createdAt: new Date(),
+    }),
+    [mode],
+  )
+
+  const seedMessages =
+    initialMessages && initialMessages.length > 0 ? initialMessages : [openingMessage]
+
   const { messages, sendMessage, status, error, setMessages } = useChat({
-    messages: initialMessages,
+    messages: seedMessages,
     transport,
   })
 
@@ -287,6 +472,10 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
             postTopic: output.params?.post_topic ?? '',
             campaignMode: output.params?.campaign_mode ?? 'social',
             vibe: output.params?.vibe,
+            campaignTheme: output.params?.campaign_theme,
+            startDate: output.params?.start_date,
+            endDate: output.params?.end_date,
+            postingFrequency: output.params?.posting_frequency,
           }
         })
       }
@@ -299,7 +488,17 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
     // Already have a result for this campaign — skip
     if (generationResults.some((r) => r.campaignId === pendingGeneration.campaignId)) return
 
-    const { campaignId, imageUrl, postTopic, campaignMode, vibe } = pendingGeneration
+    const {
+      campaignId,
+      imageUrl,
+      postTopic,
+      campaignMode,
+      vibe,
+      campaignTheme,
+      startDate,
+      endDate,
+      postingFrequency,
+    } = pendingGeneration
 
     async function runGeneration() {
       try {
@@ -311,6 +510,10 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
             post_topic: postTopic,
             campaign_mode: campaignMode,
             visual_style: vibe ? { mood: vibe } : undefined,
+            campaign_theme: campaignTheme,
+            start_date: startDate,
+            end_date: endDate,
+            posting_frequency: postingFrequency,
           }),
         })
 
@@ -340,15 +543,36 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
           director_brief?: unknown
         }
 
+        // Generate a contextual caption for Quick Post (one caption for all images)
+        let caption = postTopic || 'Generated content'
+        try {
+          const captionRes = await fetch('/api/campaigns/caption', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              campaign_id: campaignId,
+              post_topic: postTopic,
+            }),
+          })
+          if (captionRes.ok) {
+            const { caption: generated } = (await captionRes.json()) as { caption: string }
+            if (generated) caption = generated
+          }
+        } catch (err) {
+          console.warn('Caption generation failed:', err)
+        }
+
         const assets: GeneratedAsset[] = data.assets.map((a) => ({
           url: a.asset_url,
-          caption: '',
+          caption,
         }))
 
-        setGenerationResults((prev) => [...prev, { campaignId, assets }])
+        // CRITICAL: Always clear the pending generation state, even if caption fails
         setPendingGeneration(null)
+        setGenerationResults((prev) => [...prev, { campaignId, assets }])
 
-        // Append a synthetic assistant message carrying the generation result marker
+        // Append a synthetic assistant message carrying the generation result marker.
+        // campaignId is included so AssetCard can call /api/assets/save on user request.
         setMessages((prev) => [
           ...prev,
           {
@@ -357,7 +581,7 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
             parts: [
               {
                 type: 'text' as const,
-                text: JSON.stringify({ type: 'generation_result', assets }),
+                text: JSON.stringify({ type: 'generation_result', campaignId, assets }),
               },
             ],
           },
