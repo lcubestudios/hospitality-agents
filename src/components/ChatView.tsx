@@ -154,11 +154,13 @@ function GenerationResultBlock({ text }: { text: string }) {
   return (
     <div className="space-y-3">
       {prefix && <p className="text-foreground text-sm leading-relaxed">{prefix}</p>}
-      <div className="space-y-3">
-        {payload.assets.map((asset, i) => (
-          <AssetCard key={i} asset={asset} />
-        ))}
-      </div>
+      {payload.assets.length > 0 && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {payload.assets.map((asset, i) => (
+            <AssetCard key={i} asset={asset} />
+          ))}
+        </div>
+      )}
       {suffix && <p className="text-foreground text-sm leading-relaxed">{suffix}</p>}
     </div>
   )
@@ -267,7 +269,8 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
         if (part.type !== 'tool-trigger_generation') continue
         const p = part as typeof part & { state: string; output?: TriggerGenerationResult }
         if (p.state !== 'output-available' || !p.output) continue
-        const campaignId = p.output.campaign_id
+        const output = p.output
+        const campaignId = output.campaign_id
         if (!campaignId) continue
         // Only trigger generation once per campaign_id
         // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -275,10 +278,10 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
           if (prev?.campaignId === campaignId) return prev
           return {
             campaignId,
-            imageUrl: p.output.params?.image_url,
-            postTopic: p.output.params?.post_topic ?? '',
-            campaignMode: p.output.params?.campaign_mode ?? 'social',
-            vibe: p.output.params?.vibe,
+            imageUrl: output.params?.image_url,
+            postTopic: output.params?.post_topic ?? '',
+            campaignMode: output.params?.campaign_mode ?? 'social',
+            vibe: output.params?.vibe,
           }
         })
       }
@@ -443,7 +446,12 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
     const imageUrl = stagedImageUrlRef.current
 
     sendMessage(
-      { text: trimmed || '(photo attached)' },
+      {
+        text: trimmed || '(photo attached)',
+        ...(imageUrl
+          ? { experimental_attachments: [{ url: imageUrl, contentType: 'image/jpeg' }] }
+          : {}),
+      },
       {
         body: {
           mode: modeRef.current,
@@ -512,6 +520,9 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
               const hasTriggerTool = msg.parts.some((p) => p.type === 'tool-trigger_generation')
               if (hasTriggerTool && !textContent) return null
 
+              const attachments =
+                msg.experimental_attachments || (msg as Record<string, unknown>).attachments || []
+
               return (
                 <div
                   key={msg.id}
@@ -522,8 +533,24 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
                   style={{ animation: 'message-in 0.2s ease-out' }}
                 >
                   {msg.role === 'user' ? (
-                    <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
-                      {textContent}
+                    <div className="flex flex-col gap-2">
+                      {attachments.length > 0 && (
+                        <div className="grid max-w-[80%] grid-cols-2 gap-2">
+                          {attachments.map((att, i) => (
+                            <div key={i} className="overflow-hidden rounded-lg">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                src={(att as Record<string, unknown>).url as string}
+                                alt="uploaded"
+                                className="h-24 w-full object-cover"
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
+                        {textContent}
+                      </div>
                     </div>
                   ) : parseGenerationResult(textContent) ? (
                     <div className="w-full max-w-[85%]">
