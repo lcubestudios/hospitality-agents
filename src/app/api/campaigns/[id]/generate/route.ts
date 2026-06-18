@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { Anthropic } from '@anthropic-ai/sdk'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 import { sanitizeArrayForPrompt } from '@/lib/sanitize'
+import {
+  OrchestrationContext,
+  OrchestrationStep,
+  GeneratedAsset,
+  orchestrate,
+} from '@/lib/generation-orchestrator'
 
 export const maxDuration = 300
 
@@ -1048,32 +1054,493 @@ function validateSubjectLock(
   return { valid: true }
 }
 
+/**
+ * Helper: Initialize orchestration context from request payload and campaign data.
+ */
+function initializeContext(
+  campaignId: string,
+  postTopic: string,
+  payload: Record<string, unknown>,
+): OrchestrationContext {
+  return {
+    campaignId,
+    brandId: '', // will be filled before calling orchestrate
+    postTopic,
+    visualStyle: payload.visual_style as VisualStyle | undefined,
+    metadata: {
+      prompt_intent: payload.prompt_intent,
+      photo_template: payload.photo_template,
+      image_url: payload.image_url,
+      chatMode: payload.chatMode,
+      start_date: payload.start_date,
+      end_date: payload.end_date,
+      posting_frequency: payload.posting_frequency,
+      campaign_theme: payload.campaign_theme,
+    },
+  }
+}
+
+/**
+ * Build orchestration steps for campaign mode (scheduled posts).
+ * Campaign mode generates a schedule and produces images for the first 4 slots.
+ */
+function buildCampaignSteps(
+  payload: Record<string, unknown>,
+  _ctx: OrchestrationContext,
+  supabase: Awaited<ReturnType<typeof getAuthedSupabaseAdmin>>,
+  sharedHelpers: SharedGenerationHelpers,
+): OrchestrationStep[] {
+  return [
+    {
+      name: 'vision',
+      execute: (ctx) => sharedVisionStep(ctx, supabase, sharedHelpers),
+    },
+    {
+      name: 'strategy',
+      execute: (ctx) => campaignStrategyStep(ctx, payload),
+    },
+    {
+      name: 'generation',
+      execute: (ctx) => campaignGenerationStep(ctx, payload, supabase, sharedHelpers),
+    },
+    {
+      name: 'upload',
+      execute: (ctx) => uploadStep(ctx, supabase),
+    },
+  ]
+}
+
+/**
+ * Build orchestration steps for quick-post mode (4 creative concepts).
+ * Quick post mode generates 4 distinct shot concepts without a schedule.
+ */
+function buildQuickPostSteps(
+  payload: Record<string, unknown>,
+  _ctx: OrchestrationContext,
+  supabase: Awaited<ReturnType<typeof getAuthedSupabaseAdmin>>,
+  sharedHelpers: SharedGenerationHelpers,
+): OrchestrationStep[] {
+  return [
+    {
+      name: 'vision',
+      execute: (ctx) => sharedVisionStep(ctx, supabase, sharedHelpers),
+    },
+    {
+      name: 'strategy',
+      execute: (ctx) => quickPostStrategyStep(ctx),
+    },
+    {
+      name: 'generation',
+      execute: (ctx) => quickPostGenerationStep(ctx, payload, supabase, sharedHelpers),
+    },
+    {
+      name: 'upload',
+      execute: (ctx) => uploadStep(ctx, supabase),
+    },
+  ]
+}
+
+/**
+ * Shared context between all step executors.
+ * Holds references to Supabase, campaign brand info, and image generation helpers.
+ */
+interface SharedGenerationHelpers {
+  brandName: string
+  brandVoice: string
+  brandProfile: string
+  uploadedImageUrl?: string
+  uploadedBase64: string
+  uploadedMimeType: string
+}
+
+/**
+ * SHARED STEP: Vision analysis (Director's Brief)
+ * Runs Vision + analysis to produce a resolved scene (brief).
+ */
+async function sharedVisionStep(
+  ctx: OrchestrationContext,
+  _supabase: Awaited<ReturnType<typeof getAuthedSupabaseAdmin>>,
+  helpers: SharedGenerationHelpers,
+): Promise<OrchestrationContext> {
+  let brief: DirectorBrief = buildFallbackBrief(ctx.postTopic || '', ctx.visualStyle)
+
+  if (helpers.uploadedImageUrl) {
+    try {
+      const client = new Anthropic()
+      const visionRes = await client.messages.create({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1500,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: helpers.uploadedMimeType as
+                    | 'image/jpeg'
+                    | 'image/png'
+                    | 'image/gif'
+                    | 'image/webp',
+                  data: helpers.uploadedBase64,
+                },
+              },
+              {
+                type: 'text',
+                text: buildVisionPrompt({
+                  brandName: helpers.brandName,
+                  brandVoice: helpers.brandVoice,
+                  brandProfile: helpers.brandProfile,
+                  postTopic: ctx.postTopic || '',
+                  visualStyle: ctx.visualStyle,
+                  promptIntent: ctx.metadata?.prompt_intent as string | undefined,
+                }),
+              },
+            ],
+          },
+        ],
+      })
+
+      const raw = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
+      const parsed = safeParseJson<DirectorBrief>(raw)
+      if (parsed?.hero_label) {
+        brief = parsed
+      }
+    } catch (err) {
+      console.warn('Vision analysis failed, using fallback brief:', err)
+    }
+  }
+
+  const validation = validateSubjectLock(
+    (ctx.postTopic || brief.hero_label).trim(),
+    brief,
+    ctx.visualStyle?.creative_mode || 'enhanced',
+  )
+  if (!validation.valid) {
+    console.warn(`Subject lock validation failed: ${validation.warning}`)
+  }
+
+  return {
+    ...ctx,
+    briefFromVision: brief,
+  }
+}
+
+/**
+ * CAMPAIGN-SPECIFIC STEP: Strategy (schedule generation)
+ * Produces a campaign schedule with visual language guidelines.
+ */
+async function campaignStrategyStep(
+  ctx: OrchestrationContext,
+  payload: Record<string, unknown>,
+): Promise<OrchestrationContext> {
+  const theme = (payload.campaign_theme as string) || ctx.postTopic || ''
+  const { schedule, visual_language } = await buildCampaignSchedule({
+    brandName: (ctx.metadata?.brandName as string) || '',
+    brandVoice: (ctx.metadata?.brandVoice as string) || '',
+    brandProfile: (ctx.metadata?.brandProfile as string) || '',
+    postTopic: ctx.postTopic || '',
+    campaign_theme: theme,
+    start_date: (payload.start_date as string) || '',
+    end_date: (payload.end_date as string) || '',
+    posting_frequency: (payload.posting_frequency as string) || '',
+  })
+
+  return {
+    ...ctx,
+    schedule,
+    visual_language,
+  }
+}
+
+/**
+ * QUICK-POST-SPECIFIC STEP: Strategy (4-shot concept generation)
+ * Produces 4 creative shot concepts without a schedule.
+ */
+async function quickPostStrategyStep(ctx: OrchestrationContext): Promise<OrchestrationContext> {
+  const strategy = await buildQuickPostStrategy(
+    (ctx.metadata?.brandName as string) || '',
+    (ctx.metadata?.brandVoice as string) || '',
+    (ctx.metadata?.brandProfile as string) || '',
+    ctx.postTopic || '',
+  )
+
+  return {
+    ...ctx,
+    metadata: {
+      ...ctx.metadata,
+      strategy,
+    },
+  }
+}
+
+/**
+ * CAMPAIGN-SPECIFIC STEP: Generation (image generation per schedule slot)
+ * Generates 4 images in parallel, one per first 4 schedule slots.
+ * Updates campaign_schedule rows with asset_id and status.
+ */
+async function campaignGenerationStep(
+  ctx: OrchestrationContext,
+  payload: Record<string, unknown>,
+  supabase: Awaited<ReturnType<typeof getAuthedSupabaseAdmin>>,
+  helpers: SharedGenerationHelpers,
+): Promise<OrchestrationContext> {
+  if (!ctx.schedule || !ctx.briefFromVision) {
+    throw new Error('campaignGenerationStep: missing schedule or brief from prior steps')
+  }
+
+  const brandIdForSchedule = ctx.brandId
+
+  // Insert all schedule rows first
+  const scheduleRows = ctx.schedule.map((slot) => ({
+    campaign_id: ctx.campaignId,
+    brand_id: brandIdForSchedule,
+    scheduled_date: slot.date,
+    platform: slot.platform || 'Instagram',
+    content_brief: slot.content_brief,
+    status: 'pending' as const,
+  }))
+
+  const { data: insertedRows, error: scheduleInsertError } = await supabase
+    .from('campaign_schedule')
+    .insert(scheduleRows)
+    .select('id, scheduled_date, content_brief, platform')
+
+  if (scheduleInsertError) {
+    console.error('Failed to insert campaign_schedule rows:', scheduleInsertError.message)
+  }
+
+  const firstFourSlots = (insertedRows ?? []).slice(0, 4)
+  const firstFourSchedule = ctx.schedule.slice(0, 4)
+
+  const visualContext = [
+    `Color story: ${ctx.visual_language?.color_story}`,
+    `Lighting: ${ctx.visual_language?.lighting_character}`,
+    `Mood: ${ctx.visual_language?.mood}`,
+  ].join('\n')
+
+  const subjectAnchor = ctx.postTopic || ctx.briefFromVision.hero_label
+
+  // Generate 4 images in parallel
+  const assetResults = await Promise.all(
+    firstFourSchedule.map(async (slot, i) => {
+      const slotPrompt = buildGeminiPrompt({
+        brief: {
+          ...ctx.briefFromVision!,
+          image_final_prompt: `${slot.content_brief} ${ctx.briefFromVision!.image_final_prompt}`,
+        },
+        subjectAnchor,
+        visualStyle: ctx.visualStyle,
+        promptIntent: `${slot.content_brief}\n\n[VISUAL LANGUAGE — apply consistently across all posts in this campaign]\n${visualContext}`,
+        photoTemplate: payload.photo_template as string | undefined,
+      })
+
+      const slotStoragePath = `${ctx.campaignId}/schedule-${i + 1}.jpg`
+      const result = await generateAndUploadImage(
+        slotPrompt,
+        slotStoragePath,
+        ctx.campaignId,
+        supabase,
+        helpers,
+        true, // skipAssetInsert for now, we'll update schedule instead
+      )
+
+      // Update schedule row with asset_id and status
+      if (result && result.asset && firstFourSlots[i]) {
+        await supabase
+          .from('campaign_schedule')
+          .update({ asset_id: result.asset.id, status: 'completed' })
+          .eq('id', firstFourSlots[i].id)
+      } else if (firstFourSlots[i]) {
+        await supabase
+          .from('campaign_schedule')
+          .update({ status: 'failed' })
+          .eq('id', firstFourSlots[i].id)
+      }
+
+      return result
+    }),
+  )
+
+  const assets: GeneratedAsset[] = assetResults.filter(
+    (a): a is { asset_url: string; asset?: { id: string; asset_url: string } } => a !== null,
+  )
+
+  return {
+    ...ctx,
+    assets,
+  }
+}
+
+/**
+ * QUICK-POST-SPECIFIC STEP: Generation (4 distinct creative concepts)
+ * Generates 4 images in parallel, one per shot concept.
+ * Does NOT insert into campaign_schedule.
+ */
+async function quickPostGenerationStep(
+  ctx: OrchestrationContext,
+  _payload: Record<string, unknown>,
+  supabase: Awaited<ReturnType<typeof getAuthedSupabaseAdmin>>,
+  helpers: SharedGenerationHelpers,
+): Promise<OrchestrationContext> {
+  if (!ctx.briefFromVision || !ctx.metadata?.strategy) {
+    throw new Error('quickPostGenerationStep: missing brief or strategy from prior steps')
+  }
+
+  const subjectAnchor = ctx.postTopic || ctx.briefFromVision.hero_label
+  const strategy = ctx.metadata.strategy as Awaited<ReturnType<typeof buildQuickPostStrategy>>
+
+  const shotPrompts = strategy.shots.map((shot) =>
+    buildShotPrompt(shot, subjectAnchor, ctx.briefFromVision!, ctx.visualStyle),
+  )
+
+  const shotResults = await Promise.allSettled(
+    shotPrompts.map((prompt, i) =>
+      generateAndUploadImage(
+        prompt,
+        `${ctx.campaignId}/shot-${i + 1}.jpg`,
+        ctx.campaignId,
+        supabase,
+        helpers,
+        true, // skipAssetInsert = true for quick-post
+      ),
+    ),
+  )
+
+  const assets = shotResults
+    .filter(
+      (r): r is PromiseFulfilledResult<{ asset_url: string } | null> => r.status === 'fulfilled',
+    )
+    .map((r) => r.value)
+    .filter(Boolean) as Array<{ asset_url: string }>
+
+  if (assets.length === 0) {
+    throw new Error('All image generations failed')
+  }
+
+  return {
+    ...ctx,
+    assets,
+  }
+}
+
+/**
+ * SHARED STEP: Upload finalization
+ * Currently a no-op (images are uploaded during generation step).
+ * Placeholder for future video upload, manifest generation, etc.
+ */
+async function uploadStep(
+  ctx: OrchestrationContext,
+  _supabase: Awaited<ReturnType<typeof getAuthedSupabaseAdmin>>,
+): Promise<OrchestrationContext> {
+  // All uploads happen inline during generation.
+  // This step is a placeholder for future finalization logic.
+  return ctx
+}
+
+/**
+ * Helper: generate one image from a Gemini prompt and upload to Supabase.
+ * Called by both campaign and quick-post generation steps.
+ */
+async function generateAndUploadImage(
+  geminiPrompt: string,
+  storagePath: string,
+  campaignId: string,
+  supabase: Awaited<ReturnType<typeof getAuthedSupabaseAdmin>>,
+  helpers: SharedGenerationHelpers,
+  skipAssetInsert = false,
+): Promise<{ asset_url: string; asset?: { id: string; asset_url: string } } | null> {
+  const genRes = await fetch(
+    `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: geminiPrompt },
+              ...(helpers.uploadedBase64
+                ? [
+                    {
+                      inline_data: {
+                        mime_type: helpers.uploadedMimeType,
+                        data: helpers.uploadedBase64,
+                      },
+                    },
+                  ]
+                : []),
+            ],
+          },
+        ],
+        generationConfig: { response_modalities: ['IMAGE'] },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
+        ],
+      }),
+    },
+  )
+
+  if (!genRes.ok) {
+    const errText = await genRes.text()
+    console.error(`Gemini generation error (${genRes.status}) for ${storagePath}:`, errText)
+    return null
+  }
+
+  const genData = await genRes.json()
+
+  const imagePart = genData.candidates?.[0]?.content?.parts?.find(
+    (part: { inlineData?: { mimeType?: string; data?: string } }) =>
+      part.inlineData?.mimeType?.startsWith('image/'),
+  )
+
+  if (!imagePart?.inlineData?.data) {
+    console.error(`No image data for ${storagePath}. May have been blocked by safety filters.`)
+    return null
+  }
+
+  const generatedBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+
+  const { error: uploadError } = await supabase.storage
+    .from('campaign-uploads')
+    .upload(storagePath, generatedBuffer, { contentType: 'image/jpeg', upsert: true })
+
+  if (uploadError) {
+    console.error(`Storage upload error for ${storagePath}:`, uploadError.message)
+    return null
+  }
+
+  const { data: publicUrlData } = supabase.storage
+    .from('campaign-uploads')
+    .getPublicUrl(storagePath)
+
+  const assetUrl = publicUrlData.publicUrl
+
+  if (skipAssetInsert) return { asset_url: assetUrl }
+
+  const { data: asset, error: assetError } = await supabase
+    .from('assets')
+    .insert({ campaign_id: campaignId, asset_type: 'image', asset_url: assetUrl })
+    .select('id, asset_url')
+    .single()
+
+  if (assetError || !asset) {
+    console.error(`Asset insert error for ${storagePath}:`, assetError?.message)
+    return null
+  }
+
+  return { asset_url: assetUrl, asset }
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await params
-    const {
-      image_url: uploadedImageUrl,
-      visual_style: visualStyle,
-      prompt_intent: promptIntent,
-      photo_template: photoTemplate,
-      // Campaign schedule fields
-      start_date,
-      end_date,
-      posting_frequency,
-      campaign_theme,
-      // Chat mode discriminator
-      chatMode,
-    }: {
-      image_url?: string
-      visual_style?: VisualStyle
-      prompt_intent?: string
-      photo_template?: string
-      start_date?: string
-      end_date?: string
-      posting_frequency?: string
-      campaign_theme?: string
-      chatMode?: string
-    } = await req.json()
+    const payload = await req.json()
 
     if (!GOOGLE_API_KEY) {
       return NextResponse.json({ message: 'GOOGLE_AI_STUDIO_KEY not configured' }, { status: 500 })
@@ -1082,6 +1549,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const supabase = await getAuthedSupabaseAdmin()
     await supabase.from('campaigns').update({ status: 'generating' }).eq('id', campaignId)
 
+    // Load brand and campaign data
     const { data: campaign } = await supabase
       .from('campaigns')
       .select('brand_id, post_topic')
@@ -1110,10 +1578,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     ].filter(Boolean)
     const brandProfile = brandProfileLines.join('\n')
 
-    // STEP 1: Vision analysis — Director's Brief
-    let brief: DirectorBrief = buildFallbackBrief(postTopic, visualStyle)
+    // Prepare uploaded image data
     let uploadedBase64 = ''
     let uploadedMimeType = 'image/jpeg'
+    const uploadedImageUrl = payload.image_url as string | undefined
 
     if (uploadedImageUrl) {
       try {
@@ -1122,283 +1590,80 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const imgBuffer = await imgRes.arrayBuffer()
           uploadedBase64 = Buffer.from(imgBuffer).toString('base64')
           uploadedMimeType = imgRes.headers.get('content-type')?.split(';')[0] || 'image/jpeg'
-
-          const client = new Anthropic()
-          const visionRes = await client.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1500,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: uploadedMimeType as
-                        | 'image/jpeg'
-                        | 'image/png'
-                        | 'image/gif'
-                        | 'image/webp',
-                      data: uploadedBase64,
-                    },
-                  },
-                  {
-                    type: 'text',
-                    text: buildVisionPrompt({
-                      brandName,
-                      brandVoice,
-                      brandProfile,
-                      postTopic,
-                      visualStyle,
-                      promptIntent,
-                    }),
-                  },
-                ],
-              },
-            ],
-          })
-
-          const raw = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
-          const parsed = safeParseJson<DirectorBrief>(raw)
-          if (parsed?.hero_label) {
-            brief = parsed
-          }
         }
       } catch (err) {
-        console.warn('Vision analysis failed, using fallback brief:', err)
+        console.warn('Failed to fetch uploaded image:', err)
       }
     }
 
-    const subjectAnchor = postTopic.trim() || brief.hero_label
-
-    // Validate: Check for subject override in tier resolution (after brief is finalized)
-    const validation = validateSubjectLock(
-      subjectAnchor,
-      brief,
-      visualStyle?.creative_mode || 'enhanced',
-    )
-    if (!validation.valid) {
-      console.warn(`Subject lock validation failed: ${validation.warning}`)
-      // Log but continue — subject lock validation is advisory in Phase 1
-    }
-
-    // Helper: generate one image from a Gemini prompt and upload to Supabase
-    async function generateAndUploadImage(
-      geminiPrompt: string,
-      storagePath: string,
-      campaignIdRef: string,
-      skipAssetInsert = false,
-    ): Promise<{ asset_url: string; asset?: { id: string; asset_url: string } } | null> {
-      const genRes = await fetch(
-        `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [
-              {
-                parts: [
-                  { text: geminiPrompt },
-                  ...(uploadedBase64
-                    ? [{ inline_data: { mime_type: uploadedMimeType, data: uploadedBase64 } }]
-                    : []),
-                ],
-              },
-            ],
-            generationConfig: { response_modalities: ['IMAGE'] },
-            safetySettings: [
-              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
-            ],
-          }),
-        },
-      )
-
-      if (!genRes.ok) {
-        const errText = await genRes.text()
-        console.error(`Gemini generation error (${genRes.status}) for ${storagePath}:`, errText)
-        return null
-      }
-
-      const genData = await genRes.json()
-
-      const imagePart = genData.candidates?.[0]?.content?.parts?.find(
-        (part: { inlineData?: { mimeType?: string; data?: string } }) =>
-          part.inlineData?.mimeType?.startsWith('image/'),
-      )
-
-      if (!imagePart?.inlineData?.data) {
-        console.error(`No image data for ${storagePath}. May have been blocked by safety filters.`)
-        return null
-      }
-
-      const generatedBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
-
-      const { error: uploadError } = await supabase.storage
-        .from('campaign-uploads')
-        .upload(storagePath, generatedBuffer, { contentType: 'image/jpeg', upsert: true })
-
-      if (uploadError) {
-        console.error(`Storage upload error for ${storagePath}:`, uploadError.message)
-        return null
-      }
-
-      const { data: publicUrlData } = supabase.storage
-        .from('campaign-uploads')
-        .getPublicUrl(storagePath)
-
-      const assetUrl = publicUrlData.publicUrl
-
-      if (skipAssetInsert) return { asset_url: assetUrl }
-
-      const { data: asset, error: assetError } = await supabase
-        .from('assets')
-        .insert({ campaign_id: campaignIdRef, asset_type: 'image', asset_url: assetUrl })
-        .select('id, asset_url')
-        .single()
-
-      if (assetError || !asset) {
-        console.error(`Asset insert error for ${storagePath}:`, assetError?.message)
-        return null
-      }
-
-      return { asset_url: assetUrl, asset }
-    }
-
-    // ── CAMPAIGN MODE with schedule fields ──────────────────────────────────
-    if (chatMode === 'campaign' && start_date && end_date && posting_frequency) {
-      const theme = campaign_theme ?? postTopic
-
-      // STEP 2a: Build campaign schedule via Claude
-      const { schedule, visual_language } = await buildCampaignSchedule({
-        brandName,
-        brandVoice,
-        brandProfile,
-        postTopic,
-        campaign_theme: theme,
-        start_date,
-        end_date,
-        posting_frequency,
-      })
-
-      // Insert all schedule rows with status='pending'
-      const brandIdForSchedule = campaign?.brand_id ?? ''
-      const scheduleRows = schedule.map((slot) => ({
-        campaign_id: campaignId,
-        brand_id: brandIdForSchedule,
-        scheduled_date: slot.date,
-        platform: slot.platform || 'Instagram',
-        content_brief: slot.content_brief,
-        status: 'pending' as const,
-      }))
-
-      const { data: insertedRows, error: scheduleInsertError } = await supabase
-        .from('campaign_schedule')
-        .insert(scheduleRows)
-        .select('id, scheduled_date, content_brief, platform')
-
-      if (scheduleInsertError) {
-        console.error('Failed to insert campaign_schedule rows:', scheduleInsertError.message)
-        // Non-fatal — continue with generation
-      }
-
-      // Take first 4 slots to generate now
-      const firstFourSlots = (insertedRows ?? []).slice(0, 4)
-      const firstFourSchedule = schedule.slice(0, 4)
-
-      // Build a visual language context string for prompt injection
-      const visualContext = [
-        `Color story: ${visual_language.color_story}`,
-        `Lighting: ${visual_language.lighting_character}`,
-        `Mood: ${visual_language.mood}`,
-      ].join('\n')
-
-      // Generate 4 images in parallel — one per slot
-      const assetResults = await Promise.all(
-        firstFourSchedule.map(async (slot, i) => {
-          // Build a campaign-specific prompt from the slot's content_brief + visual language
-          const slotPrompt = buildGeminiPrompt({
-            brief: {
-              ...brief,
-              // Inject the slot-specific creative direction into the brief
-              image_final_prompt: `${slot.content_brief} ${brief.image_final_prompt}`,
-            },
-            subjectAnchor,
-            visualStyle,
-            promptIntent: `${slot.content_brief}\n\n[VISUAL LANGUAGE — apply consistently across all posts in this campaign]\n${visualContext}`,
-            photoTemplate,
-          })
-
-          const slotStoragePath = `${campaignId}/schedule-${i + 1}.jpg`
-          const result = await generateAndUploadImage(slotPrompt, slotStoragePath, campaignId)
-
-          // Update the schedule row with asset_id and status
-          if (result && result.asset && firstFourSlots[i]) {
-            await supabase
-              .from('campaign_schedule')
-              .update({ asset_id: result.asset.id, status: 'completed' })
-              .eq('id', firstFourSlots[i].id)
-          } else if (firstFourSlots[i]) {
-            await supabase
-              .from('campaign_schedule')
-              .update({ status: 'failed' })
-              .eq('id', firstFourSlots[i].id)
-          }
-
-          return result
-        }),
-      )
-
-      const successfulAssets = assetResults.filter(Boolean)
-
-      await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
-
-      return NextResponse.json({
-        assets: successfulAssets,
-        schedule_count: schedule.length,
-        generated_count: successfulAssets.length,
-        director_brief: brief,
-        visual_language,
-      })
-    }
-
-    // ── DEFAULT PATH: Quick Post — 4 distinct creative concepts ─────────────
-    const strategy = await buildQuickPostStrategy(
+    // Initialize orchestration context
+    const ctx: OrchestrationContext = initializeContext(campaignId, postTopic, payload)
+    ctx.brandId = campaign?.brand_id ?? ''
+    ctx.metadata = {
+      ...ctx.metadata,
       brandName,
       brandVoice,
       brandProfile,
-      subjectAnchor,
-    )
+    }
 
-    const shotPrompts = strategy.shots.map((shot) =>
-      buildShotPrompt(shot, subjectAnchor, brief, visualStyle),
-    )
+    // Shared helpers for generation steps
+    const helpers: SharedGenerationHelpers = {
+      brandName,
+      brandVoice,
+      brandProfile,
+      uploadedImageUrl,
+      uploadedBase64,
+      uploadedMimeType,
+    }
 
-    const shotResults = await Promise.allSettled(
-      shotPrompts.map((prompt, i) =>
-        generateAndUploadImage(prompt, `${campaignId}/shot-${i + 1}.jpg`, campaignId, true),
-      ),
-    )
+    // Determine execution path and build steps
+    const chatMode = payload.chatMode as string | undefined
+    const hasScheduleFields = payload.start_date && payload.end_date && payload.posting_frequency
+    const isCampaignMode = chatMode === 'campaign' && hasScheduleFields
 
-    const assets = shotResults
-      .filter(
-        (r): r is PromiseFulfilledResult<{ asset_url: string } | null> => r.status === 'fulfilled',
-      )
-      .map((r) => r.value)
-      .filter(Boolean) as Array<{ asset_url: string }>
+    const steps: OrchestrationStep[] = isCampaignMode
+      ? buildCampaignSteps(payload, ctx, supabase, helpers)
+      : buildQuickPostSteps(payload, ctx, supabase, helpers)
+
+    // Orchestrate with logging callbacks
+    const finalCtx = await orchestrate(steps, ctx, {
+      beforeStep: async (step, _context) => {
+        console.log(`→ Starting step: ${step}`)
+      },
+      afterStep: async (step, _context) => {
+        console.log(`✓ Completed step: ${step}`)
+      },
+      onStepError: async (step, error) => {
+        console.error(`✗ Step ${step} failed: ${error.message}`)
+      },
+    })
+
+    // Prepare response
+    const brief = finalCtx.briefFromVision
+    const assets = finalCtx.assets || []
 
     if (assets.length === 0) {
       await supabase.from('campaigns').update({ status: 'failed' }).eq('id', campaignId)
-      return NextResponse.json({ message: 'All image generations failed' }, { status: 500 })
+      return NextResponse.json({ message: 'No assets generated' }, { status: 500 })
     }
 
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
-    return NextResponse.json({ assets, director_brief: brief })
+    // Campaign vs quick-post response formats
+    if (isCampaignMode) {
+      return NextResponse.json({
+        assets,
+        schedule_count: finalCtx.schedule?.length ?? 0,
+        generated_count: assets.length,
+        director_brief: brief,
+        visual_language: finalCtx.visual_language,
+      })
+    }
+
+    return NextResponse.json({
+      assets,
+      director_brief: brief,
+    })
   } catch (err) {
     console.error('Generation error:', err)
     return NextResponse.json({ message: 'Generation failed' }, { status: 500 })
