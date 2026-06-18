@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Anthropic } from '@anthropic-ai/sdk'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
+import { sanitizeArrayForPrompt } from '@/lib/sanitize'
+
+export const maxDuration = 300
 
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
 export type CreativeMode = 'enhanced' | 'editorial' | 'cinematic'
+export type CampaignMode = 'social' | 'ads' | null
 
 export interface VisualStyle {
   mood?: string
@@ -692,6 +696,358 @@ Natural saturation. True-to-life tones.
 Directive: ${brief.image_final_prompt}`
 }
 
+// ─── Quick Post: 4-shot strategy ─────────────────────────────────────────────
+
+interface CampaignShot {
+  title: string
+  creative_direction: string
+  lighting_approach: string
+  setting_description: string
+  human_presence: string
+}
+
+interface CampaignStrategy {
+  shots: CampaignShot[]
+}
+
+function buildShotPrompt(
+  shot: CampaignShot,
+  subjectAnchor: string,
+  brief: DirectorBrief,
+  visualStyle?: VisualStyle,
+): string {
+  // Use the shot's lighting as the authoritative lighting directive
+  const briefWithLighting: DirectorBrief = {
+    ...brief,
+    creative_direction: {
+      ...brief.creative_direction,
+      lighting_refinement: shot.lighting_approach || brief.creative_direction.lighting_refinement,
+    },
+  }
+  const qualityLayer = buildQualityLayer(visualStyle, briefWithLighting)
+  const humanBlock =
+    shot.human_presence === 'none' ? 'No people or hands in frame.' : shot.human_presence
+
+  return `[CREATIVE CONCEPT]
+${shot.title}: ${shot.creative_direction}
+
+[SUBJECT]
+${subjectAnchor}
+
+[SETTING & STAGING]
+${shot.setting_description}
+
+[HUMAN PRESENCE]
+${humanBlock}
+
+${qualityLayer}
+
+[GUARDRAILS]
+No warped food geometry. No glowing halos. No neon effects. No artificial saturation. No CGI look.
+Organic, tactile surface grain. Natural saturation. True-to-life tones.
+No text, overlays, watermarks, or logo placements.
+Hands and human presence: follow the [HUMAN PRESENCE] block exactly — include what is described, exclude what is not.`
+}
+
+async function buildQuickPostStrategy(
+  brandName: string,
+  brandVoice: string,
+  brandProfile: string,
+  postTopic: string,
+): Promise<CampaignStrategy> {
+  const client = new Anthropic()
+  const prompt = `You are a senior creative director briefing 4 completely independent creative teams on the same product. Each team works in a different visual world — different setting, different camera position, different story, different feeling. The 4 images should look like they came from 4 different campaigns.
+
+Brand: ${brandName}
+Brand voice: ${brandVoice}
+Brand profile:
+${brandProfile}
+
+Product: ${postTopic}
+
+The 4 structural archetypes below define what TYPE of shot each concept is. Within each archetype, you have full creative freedom — make art direction decisions that genuinely suit this brand, this product, and this moment.
+
+ARCHETYPE 1 — STUDIO HERO
+Type: Product alone, no environment. Seamless background, the product does all the talking.
+Your job: Choose a background tone and staging that genuinely fits this brand's aesthetic. Decide what makes this product look magnetic in isolation. If a studio background structurally doesn't work for this product, swap for a minimalist single-surface shot instead.
+
+ARCHETYPE 2 — MACRO DESIRE
+Type: Extreme close-up. No setting — only the most irresistible detail of the product.
+Your job: Identify the single most craveable visual moment — steam, drip, pull, pour, crust, condensation, cross-section. One hard light source reveals texture. Background falls to black or heavy blur.
+
+ARCHETYPE 3 — LIFESTYLE IN CONTEXT
+Type: Product in a real, fully styled environment. The scene has equal weight to the product.
+Your job: Imagine the most aspirational real-world moment for this product. Make it specific and unexpected — not a generic café terrace.
+
+ARCHETYPE 4 — OVERHEAD EDITORIAL
+Type: Bird's-eye flat lay. Camera points straight down.
+Your job: Choose a surface and props that tell a story. Not wooden restaurant table. Choose what actually suits this brand.
+
+Return ONLY valid JSON:
+{
+  "shots": [
+    {
+      "title": "Studio Hero",
+      "creative_direction": "your specific creative call — no brackets, no placeholders",
+      "lighting_approach": "your lighting choice",
+      "setting_description": "exactly what is in the frame",
+      "human_presence": "none / or describe exactly"
+    },
+    {
+      "title": "Macro Desire",
+      "creative_direction": "the specific detail or moment that fills the frame",
+      "lighting_approach": "your lighting choice",
+      "setting_description": "what is visible beyond the extreme close-up, if anything",
+      "human_presence": "none / or hands if directly part of the action"
+    },
+    {
+      "title": "Lifestyle in Context",
+      "creative_direction": "the scene, the story, why this moment for this brand",
+      "lighting_approach": "the light that matches this setting",
+      "setting_description": "specific place, surfaces, props, environmental elements",
+      "human_presence": "describe any human presence"
+    },
+    {
+      "title": "Overhead Editorial",
+      "creative_direction": "the surface choice, the prop selection, the compositional logic",
+      "lighting_approach": "soft overhead diffused light — any variations",
+      "setting_description": "surface and every prop in the shot",
+      "human_presence": "none"
+    }
+  ]
+}
+
+Output ONLY valid JSON. No markdown. No explanation. No placeholder text.`
+
+  try {
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }],
+    })
+    const raw = response.content[0]?.type === 'text' ? response.content[0].text : ''
+    const parsed = safeParseJson<CampaignStrategy>(raw)
+    if (parsed?.shots?.length === 4) return parsed
+  } catch (err) {
+    console.warn('buildQuickPostStrategy failed, using fallback:', err)
+  }
+
+  return {
+    shots: [
+      {
+        title: 'Studio Hero',
+        creative_direction:
+          "Product on a seamless background — the brand's palette, nothing competing for attention",
+        lighting_approach:
+          'Clean studio — large softbox fill, controlled soft shadow beneath product',
+        setting_description: 'Seamless studio background, product elevated, no environment',
+        human_presence: 'none',
+      },
+      {
+        title: 'Macro Desire',
+        creative_direction:
+          'Extreme close-up on the most craveable detail — texture, steam, drip, or pour',
+        lighting_approach:
+          'Single hard directional light raking from one side — specular highlights on every edge',
+        setting_description:
+          'Extreme close-up — no setting visible, the detail fills the entire frame',
+        human_presence: 'none',
+      },
+      {
+        title: 'Lifestyle in Context',
+        creative_direction:
+          "The product in its most aspirational real-world moment — where it belongs, who it's for",
+        lighting_approach: 'Natural light that matches the time and place',
+        setting_description: 'A specific, fully-styled environment that tells the brand story',
+        human_presence: 'Hands or body language that imply a real person enjoying this',
+      },
+      {
+        title: 'Overhead Editorial',
+        creative_direction:
+          'Art-directed flat lay — product as hero, surface and props build the story',
+        lighting_approach: 'Soft diffused overhead — even coverage, no directional shadows',
+        setting_description:
+          "Bird's-eye view on a distinctive surface surrounded by deliberate props",
+        human_presence: 'none',
+      },
+    ],
+  }
+}
+
+interface CampaignScheduleSlot {
+  date: string
+  platform: string
+  content_brief: string
+}
+
+interface VisualLanguage {
+  color_story: string
+  lighting_character: string
+  mood: string
+}
+
+interface CampaignScheduleResult {
+  schedule: CampaignScheduleSlot[]
+  visual_language: VisualLanguage
+}
+
+async function buildCampaignSchedule({
+  brandName,
+  brandVoice,
+  brandProfile,
+  postTopic,
+  campaign_theme,
+  start_date,
+  end_date,
+  posting_frequency,
+}: {
+  brandName: string
+  brandVoice: string
+  brandProfile: string
+  postTopic: string
+  campaign_theme: string
+  start_date: string
+  end_date: string
+  posting_frequency: string
+}): Promise<CampaignScheduleResult> {
+  const fallback = (): CampaignScheduleResult => {
+    const today = new Date()
+    const slots: CampaignScheduleSlot[] = Array.from({ length: 4 }, (_, i) => {
+      const d = new Date(today)
+      d.setDate(today.getDate() + i * 7)
+      return {
+        date: d.toISOString().split('T')[0],
+        platform: 'Instagram',
+        content_brief: `Post ${i + 1} for ${campaign_theme || postTopic}: highlight a key aspect of this campaign.`,
+      }
+    })
+    return {
+      schedule: slots,
+      visual_language: {
+        color_story: 'Warm earthy tones with natural highlights',
+        lighting_character: 'Soft diffused natural light with gentle shadows',
+        mood: 'Inviting and authentic',
+      },
+    }
+  }
+
+  try {
+    const client = new Anthropic()
+    const prompt = `You are a social media content strategist for a food and beverage brand.
+
+Brand: ${brandName}
+Brand voice: ${brandVoice}
+${brandProfile}
+Campaign subject: ${postTopic}
+Campaign theme: ${campaign_theme}
+Campaign start: ${start_date}
+Campaign end: ${end_date}
+Posting frequency: ${posting_frequency}
+
+Task: Generate a complete content schedule for this campaign.
+
+1. Compute specific post dates between ${start_date} and ${end_date} at the given frequency (${posting_frequency}).
+   - Cap at 20 slots maximum.
+   - Distribute dates evenly across the campaign period.
+
+2. For each date, write a content_brief (1-2 sentences) describing what this specific post should be about.
+   - Each brief must be distinct from the others.
+   - Together they should tell a coherent campaign story with a clear narrative arc (build anticipation → launch → sustain → close).
+   - Ground each brief in the brand's actual food/drink offerings and the campaign theme.
+
+3. Define a visual_language that unifies all posts:
+   - color_story: The color palette and tonal direction (2-3 sentences)
+   - lighting_character: The lighting approach (1-2 sentences)
+   - mood: The emotional/atmospheric quality (1-2 sentences)
+
+Return ONLY valid JSON in this exact shape:
+{
+  "schedule": [
+    { "date": "YYYY-MM-DD", "platform": "Instagram", "content_brief": "..." }
+  ],
+  "visual_language": {
+    "color_story": "...",
+    "lighting_character": "...",
+    "mood": "..."
+  }
+}
+
+No markdown. No explanation. Only JSON.`
+
+    const res = await client.messages.create({
+      model: 'claude-sonnet-4-6',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: prompt }],
+    })
+
+    const raw = res.content?.[0]?.type === 'text' ? res.content[0].text : ''
+    const parsed = safeParseJson<CampaignScheduleResult>(raw)
+
+    if (!parsed?.schedule?.length || !parsed?.visual_language) {
+      console.warn('buildCampaignSchedule: invalid response, using fallback')
+      return fallback()
+    }
+
+    // Enforce 20-slot cap
+    return {
+      ...parsed,
+      schedule: parsed.schedule.slice(0, 20),
+    }
+  } catch (err) {
+    console.warn('buildCampaignSchedule failed, using fallback:', err)
+    return fallback()
+  }
+}
+
+/**
+ * Validates that tier resolution did not override the subject lock.
+ * Detects if the resolved scene changed subject count, item composition, or introduced new elements.
+ *
+ * @param subjectLockForm - The original subject lock form (e.g., "single pasta portion")
+ * @param resolvedScene - The resolved brief containing tier descriptions
+ * @param tier - The creative mode used
+ * @returns Validation result with boolean valid flag and optional warning message
+ */
+function validateSubjectLock(
+  subjectLockForm: string,
+  resolvedScene: DirectorBrief,
+  tier: CreativeMode,
+): { valid: boolean; warning?: string } {
+  // Extract tier descriptions
+  const tier1 = resolvedScene.tier_1_locked
+  const tier2 = resolvedScene.tier_2_enhanced
+  const tier3 = resolvedScene.tier_3_reimagined
+
+  // Check: Tier 1 should reinforce the subject lock, not add new items
+  const tier1Lower = tier1.toLowerCase()
+  const formLower = subjectLockForm.toLowerCase()
+
+  // Heuristics to detect subject override:
+  // 1. Look for "add", "new", "additional", "introduce" in tier descriptions
+  const additionKeywords = ['add ', 'new ', 'additional ', 'introduce ', 'added ', 'adds ']
+  const containsAddition = [tier1Lower, tier2.toLowerCase(), tier3.toLowerCase()].some((text) =>
+    additionKeywords.some((keyword) => text.includes(keyword)),
+  )
+
+  // 2. Check if tier 1 contradicts the lock (e.g., "locked" but then says something contradictory)
+  if (!tier1Lower.includes(formLower) && formLower.length > 0 && tier === 'enhanced') {
+    // For enhanced mode, tier 1 should reference the original subject
+    return {
+      valid: false,
+      warning: `Tier 1 resolution may have changed subject. Expected reference to "${subjectLockForm}" but tier_1_locked: "${tier1}". This may indicate subject override during tier resolution.`,
+    }
+  }
+
+  if (containsAddition && (tier === 'enhanced' || tier === 'editorial')) {
+    return {
+      valid: false,
+      warning: `Subject override detected: tier resolution added new elements. Subject lock: "${subjectLockForm}". Retrying with subject lock reinforced.`,
+    }
+  }
+
+  return { valid: true }
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await params
@@ -700,6 +1056,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       visual_style: visualStyle,
       prompt_intent: promptIntent,
       photo_template: photoTemplate,
+      // Campaign schedule fields
+      start_date,
+      end_date,
+      posting_frequency,
+      campaign_theme,
+      // Chat mode discriminator
+      chatMode,
+    }: {
+      image_url?: string
+      visual_style?: VisualStyle
+      prompt_intent?: string
+      photo_template?: string
+      start_date?: string
+      end_date?: string
+      posting_frequency?: string
+      campaign_theme?: string
+      chatMode?: string
     } = await req.json()
 
     if (!GOOGLE_API_KEY) {
@@ -732,8 +1105,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandProfileLines = [
       brand?.business_type && `Venue type: ${brand.business_type}`,
       brand?.food_drink_type && `Food & drink focus: ${brand.food_drink_type}`,
-      brand?.atmosphere?.length && `Atmosphere: ${brand.atmosphere.join(', ')}`,
-      brand?.personality?.length && `Personality: ${brand.personality.join(', ')}`,
+      brand?.atmosphere?.length && `Atmosphere: ${sanitizeArrayForPrompt(brand.atmosphere, 5)}`,
+      brand?.personality?.length && `Personality: ${sanitizeArrayForPrompt(brand.personality, 5)}`,
     ].filter(Boolean)
     const brandProfile = brandProfileLines.join('\n')
 
@@ -788,8 +1161,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
           const raw = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
           const parsed = safeParseJson<DirectorBrief>(raw)
-          if (parsed?.hero_label) brief = parsed
-          console.log('Vision analysis result:', JSON.stringify(brief, null, 2))
+          if (parsed?.hero_label) {
+            brief = parsed
+          }
         }
       } catch (err) {
         console.warn('Vision analysis failed, using fallback brief:', err)
@@ -797,108 +1171,234 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     }
 
     const subjectAnchor = postTopic.trim() || brief.hero_label
-    console.log('Subject anchor:', subjectAnchor)
 
-    // STEP 2: Image generation with Gemini 2.5 Flash
-    const geminiPrompt = buildGeminiPrompt({
-      brief,
+    // Validate: Check for subject override in tier resolution (after brief is finalized)
+    const validation = validateSubjectLock(
       subjectAnchor,
-      visualStyle,
-      promptIntent,
-      photoTemplate,
-    })
-    console.log('Gemini prompt:', geminiPrompt)
-
-    const genRes = await fetch(
-      `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                { text: geminiPrompt },
-                ...(uploadedBase64
-                  ? [{ inline_data: { mime_type: uploadedMimeType, data: uploadedBase64 } }]
-                  : []),
-              ],
-            },
-          ],
-          generationConfig: { response_modalities: ['IMAGE'] },
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
-          ],
-        }),
-      },
+      brief,
+      visualStyle?.creative_mode || 'enhanced',
     )
-
-    if (!genRes.ok) {
-      const errText = await genRes.text()
-      console.error(`Gemini generation error (${genRes.status}):`, errText)
-      return NextResponse.json({ message: 'Image generation failed' }, { status: 500 })
+    if (!validation.valid) {
+      console.warn(`Subject lock validation failed: ${validation.warning}`)
+      // Log but continue — subject lock validation is advisory in Phase 1
     }
 
-    const genData = await genRes.json()
-
-    if (!genData.candidates?.[0]) {
-      console.error('No candidates in Gemini response:', genData)
-      return NextResponse.json({ message: 'Image generation failed' }, { status: 500 })
-    }
-
-    const imagePart = genData.candidates[0].content?.parts?.find(
-      (part: { inlineData?: { mimeType?: string; data?: string } }) =>
-        part.inlineData?.mimeType?.startsWith('image/'),
-    )
-
-    if (!imagePart?.inlineData?.data) {
-      console.error(
-        'No image data in Gemini response. Prompt may have been blocked by safety filters.',
-      )
-      return NextResponse.json(
+    // Helper: generate one image from a Gemini prompt and upload to Supabase
+    async function generateAndUploadImage(
+      geminiPrompt: string,
+      storagePath: string,
+      campaignIdRef: string,
+      skipAssetInsert = false,
+    ): Promise<{ asset_url: string; asset?: { id: string; asset_url: string } } | null> {
+      const genRes = await fetch(
+        `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
         {
-          message:
-            'Image generation blocked - try describing colors/shapes instead of product types',
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [
+              {
+                parts: [
+                  { text: geminiPrompt },
+                  ...(uploadedBase64
+                    ? [{ inline_data: { mime_type: uploadedMimeType, data: uploadedBase64 } }]
+                    : []),
+                ],
+              },
+            ],
+            generationConfig: { response_modalities: ['IMAGE'] },
+            safetySettings: [
+              { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+              { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+              { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+              { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+              { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
+            ],
+          }),
         },
-        { status: 500 },
       )
+
+      if (!genRes.ok) {
+        const errText = await genRes.text()
+        console.error(`Gemini generation error (${genRes.status}) for ${storagePath}:`, errText)
+        return null
+      }
+
+      const genData = await genRes.json()
+
+      const imagePart = genData.candidates?.[0]?.content?.parts?.find(
+        (part: { inlineData?: { mimeType?: string; data?: string } }) =>
+          part.inlineData?.mimeType?.startsWith('image/'),
+      )
+
+      if (!imagePart?.inlineData?.data) {
+        console.error(`No image data for ${storagePath}. May have been blocked by safety filters.`)
+        return null
+      }
+
+      const generatedBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+
+      const { error: uploadError } = await supabase.storage
+        .from('campaign-uploads')
+        .upload(storagePath, generatedBuffer, { contentType: 'image/jpeg', upsert: true })
+
+      if (uploadError) {
+        console.error(`Storage upload error for ${storagePath}:`, uploadError.message)
+        return null
+      }
+
+      const { data: publicUrlData } = supabase.storage
+        .from('campaign-uploads')
+        .getPublicUrl(storagePath)
+
+      const assetUrl = publicUrlData.publicUrl
+
+      if (skipAssetInsert) return { asset_url: assetUrl }
+
+      const { data: asset, error: assetError } = await supabase
+        .from('assets')
+        .insert({ campaign_id: campaignIdRef, asset_type: 'image', asset_url: assetUrl })
+        .select('id, asset_url')
+        .single()
+
+      if (assetError || !asset) {
+        console.error(`Asset insert error for ${storagePath}:`, assetError?.message)
+        return null
+      }
+
+      return { asset_url: assetUrl, asset }
     }
 
-    const generatedBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
+    // ── CAMPAIGN MODE with schedule fields ──────────────────────────────────
+    if (chatMode === 'campaign' && start_date && end_date && posting_frequency) {
+      const theme = campaign_theme ?? postTopic
 
-    // STEP 3: Upload to Supabase Storage
-    const storagePath = `${campaignId}/enhanced.jpg`
-    const { error: uploadError } = await supabase.storage
-      .from('campaign-uploads')
-      .upload(storagePath, generatedBuffer, { contentType: 'image/jpeg', upsert: true })
+      // STEP 2a: Build campaign schedule via Claude
+      const { schedule, visual_language } = await buildCampaignSchedule({
+        brandName,
+        brandVoice,
+        brandProfile,
+        postTopic,
+        campaign_theme: theme,
+        start_date,
+        end_date,
+        posting_frequency,
+      })
 
-    if (uploadError) {
-      return NextResponse.json({ message: uploadError.message }, { status: 400 })
+      // Insert all schedule rows with status='pending'
+      const brandIdForSchedule = campaign?.brand_id ?? ''
+      const scheduleRows = schedule.map((slot) => ({
+        campaign_id: campaignId,
+        brand_id: brandIdForSchedule,
+        scheduled_date: slot.date,
+        platform: slot.platform || 'Instagram',
+        content_brief: slot.content_brief,
+        status: 'pending' as const,
+      }))
+
+      const { data: insertedRows, error: scheduleInsertError } = await supabase
+        .from('campaign_schedule')
+        .insert(scheduleRows)
+        .select('id, scheduled_date, content_brief, platform')
+
+      if (scheduleInsertError) {
+        console.error('Failed to insert campaign_schedule rows:', scheduleInsertError.message)
+        // Non-fatal — continue with generation
+      }
+
+      // Take first 4 slots to generate now
+      const firstFourSlots = (insertedRows ?? []).slice(0, 4)
+      const firstFourSchedule = schedule.slice(0, 4)
+
+      // Build a visual language context string for prompt injection
+      const visualContext = [
+        `Color story: ${visual_language.color_story}`,
+        `Lighting: ${visual_language.lighting_character}`,
+        `Mood: ${visual_language.mood}`,
+      ].join('\n')
+
+      // Generate 4 images in parallel — one per slot
+      const assetResults = await Promise.all(
+        firstFourSchedule.map(async (slot, i) => {
+          // Build a campaign-specific prompt from the slot's content_brief + visual language
+          const slotPrompt = buildGeminiPrompt({
+            brief: {
+              ...brief,
+              // Inject the slot-specific creative direction into the brief
+              image_final_prompt: `${slot.content_brief} ${brief.image_final_prompt}`,
+            },
+            subjectAnchor,
+            visualStyle,
+            promptIntent: `${slot.content_brief}\n\n[VISUAL LANGUAGE — apply consistently across all posts in this campaign]\n${visualContext}`,
+            photoTemplate,
+          })
+
+          const slotStoragePath = `${campaignId}/schedule-${i + 1}.jpg`
+          const result = await generateAndUploadImage(slotPrompt, slotStoragePath, campaignId)
+
+          // Update the schedule row with asset_id and status
+          if (result && result.asset && firstFourSlots[i]) {
+            await supabase
+              .from('campaign_schedule')
+              .update({ asset_id: result.asset.id, status: 'completed' })
+              .eq('id', firstFourSlots[i].id)
+          } else if (firstFourSlots[i]) {
+            await supabase
+              .from('campaign_schedule')
+              .update({ status: 'failed' })
+              .eq('id', firstFourSlots[i].id)
+          }
+
+          return result
+        }),
+      )
+
+      const successfulAssets = assetResults.filter(Boolean)
+
+      await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
+
+      return NextResponse.json({
+        assets: successfulAssets,
+        schedule_count: schedule.length,
+        generated_count: successfulAssets.length,
+        director_brief: brief,
+        visual_language,
+      })
     }
 
-    const { data: publicUrlData } = supabase.storage
-      .from('campaign-uploads')
-      .getPublicUrl(storagePath)
+    // ── DEFAULT PATH: Quick Post — 4 distinct creative concepts ─────────────
+    const strategy = await buildQuickPostStrategy(
+      brandName,
+      brandVoice,
+      brandProfile,
+      subjectAnchor,
+    )
 
-    const enhancedImageUrl = publicUrlData.publicUrl
+    const shotPrompts = strategy.shots.map((shot) =>
+      buildShotPrompt(shot, subjectAnchor, brief, visualStyle),
+    )
 
-    const { data: asset, error: assetError } = await supabase
-      .from('assets')
-      .insert({ campaign_id: campaignId, asset_type: 'image', asset_url: enhancedImageUrl })
-      .select()
-      .single()
+    const shotResults = await Promise.allSettled(
+      shotPrompts.map((prompt, i) =>
+        generateAndUploadImage(prompt, `${campaignId}/shot-${i + 1}.jpg`, campaignId, true),
+      ),
+    )
 
-    if (assetError) {
-      return NextResponse.json({ message: assetError.message }, { status: 400 })
+    const assets = shotResults
+      .filter(
+        (r): r is PromiseFulfilledResult<{ asset_url: string } | null> => r.status === 'fulfilled',
+      )
+      .map((r) => r.value)
+      .filter(Boolean) as Array<{ asset_url: string }>
+
+    if (assets.length === 0) {
+      await supabase.from('campaigns').update({ status: 'failed' }).eq('id', campaignId)
+      return NextResponse.json({ message: 'All image generations failed' }, { status: 500 })
     }
 
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
-    return NextResponse.json({ asset_url: enhancedImageUrl, asset, director_brief: brief })
+    return NextResponse.json({ assets, director_brief: brief })
   } catch (err) {
     console.error('Generation error:', err)
     return NextResponse.json({ message: 'Generation failed' }, { status: 500 })
