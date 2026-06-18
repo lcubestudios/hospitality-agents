@@ -1,24 +1,45 @@
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { redirect } from 'next/navigation'
+import { AppShell } from '@/components/AppShell'
+import { getSession } from '@/lib/session'
+import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 
-export default function Home() {
+export default async function Home() {
+  const session = await getSession()
+
+  if (!session) {
+    redirect('/auth/login')
+  }
+
+  const supabase = await getAuthedSupabaseAdmin()
+  const { data: brand } = await supabase
+    .from('brands')
+    .select(
+      'id, name, description, brand_voice, business_type, food_drink_type, location, atmosphere, personality',
+    )
+    .eq('id', session.brandId)
+    .single()
+
+  if (!brand) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-gray-100 p-4">
+        <p className="text-gray-500">Brand not found.</p>
+      </main>
+    )
+  }
+
   return (
-    <main className="bg-background flex min-h-screen items-center justify-center p-8">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle>Hospitality Agents</CardTitle>
-          <CardDescription>
-            AI agent dashboard for F&amp;B operators. Setup phase scaffold — Campaign Creator coming
-            soon.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <Button disabled>Enter dashboard (auth wiring pending)</Button>
-          <p className="text-muted-foreground text-sm">
-            Next: wire Clerk auth, Supabase, and the generation pipeline in the Build phase.
-          </p>
-        </CardContent>
-      </Card>
-    </main>
+    <AppShell
+      brand={{
+        id: brand.id,
+        name: brand.name,
+        description: brand.description ?? '',
+        brand_voice: brand.brand_voice ?? '',
+        business_type: brand.business_type ?? '',
+        food_drink_type: brand.food_drink_type ?? '',
+        location: brand.location ?? '',
+        atmosphere: brand.atmosphere ?? [],
+        personality: brand.personality ?? [],
+      }}
+    />
   )
 }

@@ -1,6 +1,6 @@
 # Project Status — Hospitality Agents
 
-## Current Phase: Setup (PSB Framework) — closing out
+## Current Phase: Build (PSB Framework) — Step 3 complete
 
 ### PSB Progress
 
@@ -55,28 +55,73 @@ Git: `main` branch, 4 commits, pushed to `github.com/LukasAVB/hospitality-agents
 
 ---
 
-## Build phase plan (next session onwards)
+## Build phase plan (ordered feature sequence)
 
 Order of features is **deliberate**. Auth is stubbed, not skipped — the data model exercises RLS from the first migration.
 
-1. **Supabase project + first migration** — create project, wire client, run initial schema (`users`, `brands`, `campaigns`, `assets`, `generation_jobs`) with RLS policies. Seed the dev user.
-2. **Auth stub** — `src/lib/auth.ts` exports `DEV_USER_ID` and `getCurrentUserId()`. Every Supabase call routes through the helper.
-3. **Brand profile CRUD** — simple form + Supabase write; validates the stub → RLS path end-to-end.
-4. **Campaign Creator wizard (images)** — upload product photo → fal.ai Flux image-to-image → preview + download. Single post, no video yet.
-5. **Campaign Creator (copy + hashtags)** — add Claude Sonnet for caption + hashtag generation, prompt-cache the brand guide.
-6. **Campaign Creator (video)** — wire Creatomate, assemble enhanced image + caption overlay into a short clip.
-7. **Campaign Creator (multi-post + ZIP download)** — extend to `post_count` posts, bundle outputs as a ZIP.
-8. **Auth swap (Clerk)** — install `@clerk/nextjs`, add middleware, replace `getCurrentUserId()` body. Wire Clerk→Supabase JWT template.
-9. **Invite-only flow + waitlist page** — Clerk invite API + a public waitlist form.
+1. ✅ **Supabase project + first migration** — create project, wire client, run initial schema (`users`, `brands`, `campaigns`, `assets`, `generation_jobs`) with RLS policies. Seed the dev user. | _Completed 2026-04-27_
+2. ✅ **Auth stub** — `src/lib/auth.ts` exports `getCurrentUserId()`, reads from session (multi-step signup) or falls back to `DEV_USER_ID`. Every Supabase call routes through the helper. | _Completed 2026-04-27_
+3. ✅ **Brand profile CRUD** — simple form + Supabase write; validates the stub → RLS path end-to-end. Tested locally, form saves brands with `user_id` properly set. | _Completed 2026-04-27_
+4. ✅ **Campaign Creator wizard (images)** — Complete. Upload flow works (photo → Supabase Storage). Image generation uses Claude Vision for product analysis + Gemini 2.5 Flash for generation. Generated image saves to Supabase and displays with download button. | _Completed 2026-04-30_
+   - **Vision analysis fix:** Hybrid approach implemented. Claude Sonnet 4.6 analyzes uploaded photos (accurate), output feeds to Gemini for generation. Replaced broken Gemini-3-flash vision endpoint.
+   - **Safety filter fix:** Added `safetySettings: [BLOCK_ONLY_HIGH]` for all harm categories to Gemini payload. Typos (e.g., "Mapo") no longer block generation.
+   - **Cost:** Claude Vision ~$0.003/image; billing enabled on Anthropic account.
+5. ✅ **Campaign Creator (copy + hashtags)** — Caption + hashtag generation wired via Claude Sonnet. brand*voice + post_topic fields added to brands/campaigns. | \_Completed 2026-04-29*
+   - **Caption handling:** Users select outputs via checkboxes (image, caption, video) before generating — solves JSON parsing without workarounds.
+6. ✅ **Basic UI** — Completed 2026-04-29:
+   - **Brand context panel** — brand name + description load from Supabase, editable inline with save (PATCH `/api/brands/[id]`). Brand voice deferred (future addition).
+   - **Multi-photo upload** — up to 3 photos, hover to replace/remove. All uploaded to Supabase Storage. Single enhanced image output. Multiple outputs noted as future possibility.
+   - **Step progress indicator** — live pipeline steps shown during generation, dynamically includes only selected outputs.
+   - **Isolated regenerate buttons** — separate Regenerate on image, caption, and video cards. Uploaded URLs stored in own state; cache-busted with `?t=Date.now()` so new renders display. Archives store up to 2 previous campaigns.
+7. ✅ **Campaign Creator (video)** — Veo 3 Fast (Google AI Studio) wired via `/api/campaigns/[id]/video`. Prompt built from caption, async polling until done, video uploaded to Supabase Storage, saved to `assets` table. Video generation is opt-in via checkbox, integrates into main "Generate Campaign" flow. | _Completed 2026-04-30_
+   - **Approach:** Skipped Creatomate — Veo 3 Fast available on existing Google AI Studio key, no new account needed.
+   - **API pattern:** POST `:predictLongRunning` → poll operation every 5s (max 3 min) → download from temp URI → upload to Supabase.
+   - **Duration:** 8 seconds (valid range: 4–8s; 9:16 aspect ratio).
+   - **UX decision:** Video opt-in via checkbox, progress indicator includes "Generating video" when selected, outputs stack vertically.
+8. ✅ **Multi-step signup with session-based auth** — Signup (`/auth/signup`) → Setup brand (`/auth/setup-brand`) → Home. Password hashing with pbkdf2Sync (100k iterations). httpOnly session cookies. Returns users via login page. All flows tested end-to-end with Siam Kitchen brand. | _Completed 2026-05-05_
+9. ~~**Campaign Creator (multi-post + ZIP download)**~~ — **Backlogged (low pri).** Doesn't match real F&B workflow. Revisit post-launch.
+10. ~~**Auth swap (Clerk)**~~ — **Backlogged (higher pri than step 9).** Session-based auth is good enough for invite-only MVP. Swap when scaling. Consider simple invite code on signup form as short-term gate.
+11. **Invite-only flow + waitlist page** — Deferred with Clerk.
 
 Deployment and production readiness items (Vercel prod env vars, Sentry, uptime monitoring) happen after step 5 once there's a real pipeline to observe.
 
 ---
 
+## ✅ Vision analysis fixed (2026-04-30)
+
+Implemented hybrid Claude Vision + Gemini approach:
+
+- Claude Sonnet 4.6 analyzes product photos (accurate)
+- Result feeds to Gemini 2.5 Flash for generation
+- Safety filters set to `BLOCK_ONLY_HIGH` (typos no longer block)
+
+Ready to proceed to step 7 (video generation).
+
+---
+
 ## Next session: pick up here
 
-1. **Configure MCP servers + slash commands** — Supabase MCP is the main one; any others as needed
-2. **Start Build step 1** — Supabase project creation (user action, then scaffold migration locally)
+### Completed (2026-05-25)
+
+- ✅ **Dashboard redesign** — Brand settings refactored (edit name/description), brand voice now in Campaign Creator, Log Out moved to sidebar bottom, standardized auth copy (Username instead of Brand Name, simplified headings)
+
+### In Progress / Next Priority
+
+1. **Improve signup flow** — Make onboarding more guided and intuitive. Current flow (signup → setup-brand → home) works but needs better UX polish, progress indicators, field validation messaging, and clearer intent at each step.
+2. **Image + video prompt refinement** — improve generation relevance and quality across F&B use-cases
+3. **Brand voice captioning** — captions should reflect the brand's voice, not generic copy
+
+---
+
+## QA Notes — Output Quality (Deferred Polish)
+
+As of 2026-05-05 testing (Siam Kitchen brand):
+
+- **Photo generation:** Still questionable relevance; consider adjusting prompts
+- **Video generation:** Food-relevant, quality acceptable; prompt refinement possible
+- **Caption generation:** Consistency to validate across different brands
+
+Not blocking MVP, but marked for refinement post-launch.
 
 ---
 

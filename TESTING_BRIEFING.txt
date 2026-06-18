@@ -1,0 +1,73 @@
+HOSPITALITY AGENTS — TESTING BRIEFING
+Date: May 12, 2026
+Status: MVP deployed to production
+
+================================================================================
+WHAT IS THIS
+================================================================================
+
+AI tool that turns a restaurant/bar photo into a social media content package:
+enhanced marketing photo, short video, caption with hashtags. All downloadable.
+
+Production URL: https://hospitality-agents-jsjfln5jr-lcube-studios-projects.vercel.app
+
+================================================================================
+TEST ACCOUNTS
+================================================================================
+
+Brand: Siam Kitchen
+Password: password123
+
+Brand: Ember
+Password: password123
+
+================================================================================
+WHAT WORKS
+================================================================================
+
+✓ Sign up & login (multi-step)
+✓ Brand profile (name, description, voice tone)
+✓ Photo upload
+✓ Image generation (Claude analysis → Gemini generation)
+✓ Caption generation (Claude, based on brand voice + topic)
+✓ Video generation (8-second motion videos)
+✓ Outputs in collapsible accordion layout
+✓ Save to archive (up to 5 campaigns)
+✓ Download all outputs as files
+✓ Delete archived campaigns with confirmation
+✓ Archive slot counter (shows X/5)
+✓ Responsive UI (sidebar, tabs, responsive layout)
+
+================================================================================
+WHAT NEEDS EDITS
+================================================================================
+
+• Image quality — too conservative, needs more editorial realism in lighting/angle
+• Video quality — minimal motion, needs more cinematic depth
+• Caption length — sometimes runs to 250 char limit; occasionally cuts awkwardly
+• Archive warning — only shows at 5/5 slots, should warn at 4/5
+• Brand voice — only tested with one restaurant (Siam Kitchen)
+
+================================================================================
+WHAT DOESN'T WORK
+================================================================================
+
+• Multi-photo upload — planned, not built
+• Invite-only signup gate — anyone can sign up (open for testing only)
+• Clerk auth swap — still using session-based auth, Clerk deferred to later
+• Social publishing — not in MVP, all outputs download only
+
+================================================================================
+
+WORKFLOW TO TEST
+
+1. Log in with test account
+2. Check brand info is saved correctly
+3. Upload a food/drink photo
+4. Pick a post topic (e.g., "new appetizer menu")
+5. Select outputs to generate (or all three)
+6. Click Generate and watch progress
+7. Download or save to archive
+8. Switch to Archives tab to verify save
+
+================================================================================
