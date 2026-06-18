@@ -8,13 +8,13 @@ F&B operators (restaurants, bars, cafes, hotels with dining) who need consistent
 
 ### Problems it solves
 
-| Problem | How painful |
-|---------|------------|
-| Creating consistent social content takes 3–5 hrs/week | High — recurring, every week |
-| DIY tools (Canva, CapCut) require skill and time | Medium — operators aren't designers |
-| Agencies are expensive and slow | High — not accessible for most independents |
-| Brand looks inconsistent post-to-post | Medium — kills trust and recognition |
-| Generating campaigns around events/specials is ad hoc | High — missed revenue opportunities |
+| Problem                                               | How painful                                 |
+| ----------------------------------------------------- | ------------------------------------------- |
+| Creating consistent social content takes 3–5 hrs/week | High — recurring, every week                |
+| DIY tools (Canva, CapCut) require skill and time      | Medium — operators aren't designers         |
+| Agencies are expensive and slow                       | High — not accessible for most independents |
+| Brand looks inconsistent post-to-post                 | Medium — kills trust and recognition        |
+| Generating campaigns around events/specials is ad hoc | High — missed revenue opportunities         |
 
 ### What it does
 
@@ -23,11 +23,13 @@ A web dashboard where F&B operators select and run AI agents to automate operati
 **Agent #1: Campaign Creator**
 
 The operator provides:
+
 - Their brand profile (name, tone, cuisine type, color palette)
 - A campaign brief (topic, e.g. "weekend brunch launch")
 - Reference photos of their actual product (dishes, drinks, venue)
 
 The agent outputs a complete, visually consistent campaign:
+
 - **Images** — enhanced/upleveled versions of client photos, styled to brand
 - **Short videos** — motion clips built from images with text overlays and transitions
 - **Captions** — per-post copy in brand voice and language
@@ -43,13 +45,13 @@ Invite-only at launch (no self-serve sign-up). Waitlist page added once early us
 
 ## Agent Roadmap (post-MVP, for pitch narrative)
 
-| Agent | What it automates |
-|-------|------------------|
-| Review Response | Auto-draft replies to Google/Yelp reviews |
-| Reservation Assist | Handles inquiry DMs/emails, confirms bookings |
-| Menu Sync | Pushes menu updates to Google, website, delivery apps |
-| Staff Comms | Shift reminders, policy Q&A |
-| Promo Planner | Weekly specials + promotional calendar |
+| Agent              | What it automates                                     |
+| ------------------ | ----------------------------------------------------- |
+| Review Response    | Auto-draft replies to Google/Yelp reviews             |
+| Reservation Assist | Handles inquiry DMs/emails, confirms bookings         |
+| Menu Sync          | Pushes menu updates to Google, website, delivery apps |
+| Staff Comms        | Shift reminders, policy Q&A                           |
+| Promo Planner      | Weekly specials + promotional calendar                |
 
 ---
 
@@ -71,11 +73,13 @@ The product is a web application with the following top-level concerns:
 ### Key user flows
 
 **Onboarding (first use)**
+
 1. Accept invite → create account
 2. Set up brand profile (name, cuisine, tone, color palette, logo upload)
 3. Land on dashboard
 
 **Create a campaign**
+
 1. Open Campaign Creator agent
 2. Upload 1–3 reference product photos
 3. Enter campaign brief (topic, platform, number of posts)
@@ -83,6 +87,7 @@ The product is a web application with the following top-level concerns:
 5. Review, edit, download
 
 **Return use**
+
 - Dashboard → Campaign Creator → new brief (brand profile pre-loaded)
 - Access campaign history, remix or duplicate past campaigns
 

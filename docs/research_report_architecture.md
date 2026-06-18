@@ -6,16 +6,16 @@
 
 ## Summary of Recommendations
 
-| Layer | Recommended | Runner-up | Why |
-|---|---|---|---|
-| Frontend framework | Next.js (App Router) | Vite + React SPA | SSR optional but free; best ecosystem for the stack; investor demos want fast initial loads |
-| Auth | Clerk | Supabase Auth | Native invite-only mode, prebuilt UI, 10 min integration; keep Supabase Auth as fallback if already using Supabase everywhere |
-| Database | Supabase (Postgres) | Neon | Auth + DB + Storage in one bill and one SDK; RLS baked in; Neon had notable 2025 outages |
-| File storage | Supabase Storage | Cloudflare R2 | Zero extra integration if already on Supabase; upgrade to R2 later if egress costs hurt |
-| LLM / copy | Anthropic Claude API | OpenAI GPT-4o | Better long-context adherence for brand voice; large context window ingests full brand guide in one call |
-| Image AI | fal.ai (Flux) | Replicate | 30-50% cheaper than Replicate, fastest inference, TypeScript SDK, image-to-image for photo enhancement |
-| Video assembly | Creatomate | Shotstack | Cloud-rendered, no infrastructure, template-driven, 15 s render times, responsive to aspect ratio |
-| Deployment | Vercel | Fly.io | Zero-config Next.js, preview URLs for investor demos, acceptable cost at MVP scale |
+| Layer              | Recommended          | Runner-up        | Why                                                                                                                           |
+| ------------------ | -------------------- | ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Frontend framework | Next.js (App Router) | Vite + React SPA | SSR optional but free; best ecosystem for the stack; investor demos want fast initial loads                                   |
+| Auth               | Clerk                | Supabase Auth    | Native invite-only mode, prebuilt UI, 10 min integration; keep Supabase Auth as fallback if already using Supabase everywhere |
+| Database           | Supabase (Postgres)  | Neon             | Auth + DB + Storage in one bill and one SDK; RLS baked in; Neon had notable 2025 outages                                      |
+| File storage       | Supabase Storage     | Cloudflare R2    | Zero extra integration if already on Supabase; upgrade to R2 later if egress costs hurt                                       |
+| LLM / copy         | Anthropic Claude API | OpenAI GPT-4o    | Better long-context adherence for brand voice; large context window ingests full brand guide in one call                      |
+| Image AI           | fal.ai (Flux)        | Replicate        | 30-50% cheaper than Replicate, fastest inference, TypeScript SDK, image-to-image for photo enhancement                        |
+| Video assembly     | Creatomate           | Shotstack        | Cloud-rendered, no infrastructure, template-driven, 15 s render times, responsive to aspect ratio                             |
+| Deployment         | Vercel               | Fly.io           | Zero-config Next.js, preview URLs for investor demos, acceptable cost at MVP scale                                            |
 
 ---
 
@@ -29,15 +29,15 @@
 
 ### Evaluation against project constraints
 
-| Criterion | Next.js | Remix | Vite SPA |
-|---|---|---|---|
-| Setup speed | High — `create-next-app` | Medium | High — `npm create vite` |
-| Works behind login only | Yes | Yes | Yes — SPA is ideal for auth-gated apps |
-| File uploads / API routes | Built-in Route Handlers | Built-in Actions | Needs separate backend |
-| Investor demo polish | High — fast initial load via SSR | Medium | Lower — blank screen until JS loads |
-| Ecosystem / hiring | Largest | Smaller | Largest (plain React) |
-| Vercel integration | Native first-class | Good | Good (static) |
-| App Router complexity | Medium learning curve | Lower | None |
+| Criterion                 | Next.js                          | Remix            | Vite SPA                               |
+| ------------------------- | -------------------------------- | ---------------- | -------------------------------------- |
+| Setup speed               | High — `create-next-app`         | Medium           | High — `npm create vite`               |
+| Works behind login only   | Yes                              | Yes              | Yes — SPA is ideal for auth-gated apps |
+| File uploads / API routes | Built-in Route Handlers          | Built-in Actions | Needs separate backend                 |
+| Investor demo polish      | High — fast initial load via SSR | Medium           | Lower — blank screen until JS loads    |
+| Ecosystem / hiring        | Largest                          | Smaller          | Largest (plain React)                  |
+| Vercel integration        | Native first-class               | Good             | Good (static)                          |
+| App Router complexity     | Medium learning curve            | Lower            | None                                   |
 
 The critical differentiator for this project is that the dashboard sits entirely behind auth — no public marketing pages to SEO-index. This makes Vite SPA a real contender for pure DX. However, the investor demo argument tips the scales: Next.js gives a perceived-performance advantage (shell HTML arrives before JS), and its App Router enables streaming partial renders during AI generation calls — which matters when video rendering takes 10-30 s. Remix is capable but the community is smaller, making it harder to find answers quickly for a ship-fast team.
 
@@ -57,15 +57,15 @@ The critical differentiator for this project is that the dashboard sits entirely
 
 ### Evaluation against project constraints
 
-| Criterion | Clerk | Supabase Auth | NextAuth |
-|---|---|---|---|
-| Invite-only mode | First-class — "Restricted" mode + invitation API from dashboard | Partial — send invite links but limited to org email domains in default config | DIY — implement via magic links or custom flows |
-| Setup time | 1-3 hours (component drop-in) | 1-2 days (SSR package + RLS setup) | 2-5 days (adapters, session config) |
-| Prebuilt UI | Yes — polished, matches Tailwind tokens | Minimal | None |
-| Invite management dashboard | Yes | No | No |
-| Composability with Supabase DB | Good — use Clerk JWT in Supabase RLS | Native (same product) | Requires custom JWT setup |
-| Free tier | 10k MAU | 50k MAU | Free (self-host) |
-| Paid | $0.02/MAU | $0.00325/MAU | None (hosting cost only) |
+| Criterion                      | Clerk                                                           | Supabase Auth                                                                  | NextAuth                                        |
+| ------------------------------ | --------------------------------------------------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------- |
+| Invite-only mode               | First-class — "Restricted" mode + invitation API from dashboard | Partial — send invite links but limited to org email domains in default config | DIY — implement via magic links or custom flows |
+| Setup time                     | 1-3 hours (component drop-in)                                   | 1-2 days (SSR package + RLS setup)                                             | 2-5 days (adapters, session config)             |
+| Prebuilt UI                    | Yes — polished, matches Tailwind tokens                         | Minimal                                                                        | None                                            |
+| Invite management dashboard    | Yes                                                             | No                                                                             | No                                              |
+| Composability with Supabase DB | Good — use Clerk JWT in Supabase RLS                            | Native (same product)                                                          | Requires custom JWT setup                       |
+| Free tier                      | 10k MAU                                                         | 50k MAU                                                                        | Free (self-host)                                |
+| Paid                           | $0.02/MAU                                                       | $0.00325/MAU                                                                   | None (hosting cost only)                        |
 
 For an invite-only product with a small known user list (<100 users for MVP), cost difference is irrelevant — everyone is under the free tier. Clerk's invite API is exactly the workflow needed: send invite → user signs up via invite link only → dashboard shows invited/accepted status. With Supabase Auth you'd need to build that flow yourself.
 
@@ -88,15 +88,15 @@ The one tradeoff: if using Supabase for DB, you need to pass Clerk's JWT to Supa
 
 ### Evaluation against project constraints
 
-| Criterion | Supabase | Neon | PlanetScale | Firebase |
-|---|---|---|---|---|
-| Database type | Postgres | Postgres | MySQL (Vitess) | NoSQL |
-| Free tier | 500 MB + auth + storage | 0.5 GB, up to 100 projects | None ($39/mo min) | Spark plan (degraded 2026) |
-| Reliability | High, multi-region | Multiple outages in 2025 (5.5 hr incident in May) | High | High |
-| Bundles auth + storage | Yes | No | No | Partially (degraded) |
-| RLS / security model | Native at DB layer | Manual (PostgRESS policies) | Manual | Security rules (different paradigm) |
-| Schema / SQL | Full Postgres SQL | Full Postgres SQL | MySQL — no Postgres extensions | N/A (NoSQL) |
-| Vercel integration | Native | Native (Marketplace) | Native | Yes |
+| Criterion              | Supabase                | Neon                                              | PlanetScale                    | Firebase                            |
+| ---------------------- | ----------------------- | ------------------------------------------------- | ------------------------------ | ----------------------------------- |
+| Database type          | Postgres                | Postgres                                          | MySQL (Vitess)                 | NoSQL                               |
+| Free tier              | 500 MB + auth + storage | 0.5 GB, up to 100 projects                        | None ($39/mo min)              | Spark plan (degraded 2026)          |
+| Reliability            | High, multi-region      | Multiple outages in 2025 (5.5 hr incident in May) | High                           | High                                |
+| Bundles auth + storage | Yes                     | No                                                | No                             | Partially (degraded)                |
+| RLS / security model   | Native at DB layer      | Manual (PostgRESS policies)                       | Manual                         | Security rules (different paradigm) |
+| Schema / SQL           | Full Postgres SQL       | Full Postgres SQL                                 | MySQL — no Postgres extensions | N/A (NoSQL)                         |
+| Vercel integration     | Native                  | Native (Marketplace)                              | Native                         | Yes                                 |
 
 PlanetScale and Firebase are eliminated. PlanetScale's free tier removal in 2024 makes it uneconomical for MVP, and Firebase's free tier erosion in early 2026 removes its cost advantage. Neon's branching story is genuinely appealing for staging environments, but the 2025 outage history (particularly the 5.5-hour US-East-1 incident caused by Kubernetes IP exhaustion) introduces reliability risk that is unacceptable for a product being demo'd to investors.
 
@@ -120,14 +120,14 @@ Supabase is the clear winner: it bundles the database, auth (backup if Clerk is 
 
 The project stores: uploaded product photos (typically 2-5 MB each), AI-enhanced output images (3-10 MB), short video clips (15-30 s, 10-50 MB per clip), and downloadable campaign ZIP archives. For an MVP with 50-100 users, monthly storage stays well under 50 GB; egress volume is moderate (each user downloads their campaign outputs once).
 
-| Criterion | Supabase Storage | Cloudflare R2 | AWS S3 |
-|---|---|---|---|
-| Zero extra integration | Yes (same Supabase client) | No (separate SDK) | No |
-| Auth-integrated access policies | Native via RLS | Manual (signed URLs) | Manual (IAM / signed URLs) |
-| Egress pricing | 1 TB included in $5/mo Pro | Zero egress | $0.09/GB — expensive at scale |
-| Setup time | Minutes | 1-2 hours | 2-4 hours (IAM policies) |
-| S3-compatible API | Yes | Yes | Native |
-| Migration path | Easy — S3-compatible | Easy | N/A |
+| Criterion                       | Supabase Storage           | Cloudflare R2        | AWS S3                        |
+| ------------------------------- | -------------------------- | -------------------- | ----------------------------- |
+| Zero extra integration          | Yes (same Supabase client) | No (separate SDK)    | No                            |
+| Auth-integrated access policies | Native via RLS             | Manual (signed URLs) | Manual (IAM / signed URLs)    |
+| Egress pricing                  | 1 TB included in $5/mo Pro | Zero egress          | $0.09/GB — expensive at scale |
+| Setup time                      | Minutes                    | 1-2 hours            | 2-4 hours (IAM policies)      |
+| S3-compatible API               | Yes                        | Yes                  | Native                        |
+| Migration path                  | Easy — S3-compatible       | Easy                 | N/A                           |
 
 At MVP scale the egress advantage of R2 over Supabase Storage is negligible in absolute dollars. The integration advantage of Supabase Storage is significant: you get access policies that inherit from your auth identity for free. With R2 you would implement signed URL generation manually.
 
@@ -148,15 +148,15 @@ At MVP scale the egress advantage of R2 over Supabase Storage is negligible in a
 
 The Campaign Creator requires: reading a brand voice guide, processing product descriptions, then generating Instagram captions, hashtag sets, and a campaign brief that stays on-brand across multiple output formats. The quality of adherence to a supplied style guide is the primary evaluation axis.
 
-| Criterion | Claude API | GPT-4o |
-|---|---|---|
+| Criterion                           | Claude API                                                                                            | GPT-4o                                              |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------- | --------------------------------------------------- |
 | Instruction adherence / brand voice | Higher — consistently applies tone, avoids jargon when told to, maintains persona across long outputs | Good, but more variable on multi-constraint prompts |
-| Context window | 200k tokens (full brand guide + product catalog in one call) | 128k tokens |
-| Creative writing quality | Marginally better for marketing copy per 2025-2026 independent comparisons | Strong, especially for structured formats |
-| Multimodal (image input) | Yes (vision) | Yes (vision) |
-| Pricing | Sonnet-tier: ~$3/$15 per M tokens in/out | GPT-4o: ~$2.50/$10 per M tokens in/out |
-| SDK / TypeScript support | Official `@anthropic-ai/sdk` | Official `openai` npm package |
-| Structured output / tool use | Strong (tool use + JSON mode) | Strong (JSON mode, function calling) |
+| Context window                      | 200k tokens (full brand guide + product catalog in one call)                                          | 128k tokens                                         |
+| Creative writing quality            | Marginally better for marketing copy per 2025-2026 independent comparisons                            | Strong, especially for structured formats           |
+| Multimodal (image input)            | Yes (vision)                                                                                          | Yes (vision)                                        |
+| Pricing                             | Sonnet-tier: ~$3/$15 per M tokens in/out                                                              | GPT-4o: ~$2.50/$10 per M tokens in/out              |
+| SDK / TypeScript support            | Official `@anthropic-ai/sdk`                                                                          | Official `openai` npm package                       |
+| Structured output / tool use        | Strong (tool use + JSON mode)                                                                         | Strong (JSON mode, function calling)                |
 
 The 200k context window is a practical advantage: you can send the full brand guidelines document, a competitor analysis excerpt, all product descriptions for the campaign, and previous captions in a single call with no chunking. GPT-4o's 128k is sufficient for most cases but tighter.
 
@@ -183,16 +183,16 @@ GPT-4o's image-generation feature (GPT Image 1.5) is a genuine advantage if you 
 
 The primary use case is photo enhancement: a restaurant operator uploads a phone photo of a dish — you need to improve lighting, clean the background, possibly upscale, and produce a social-media-ready hero image. The secondary use case (fast follow post-MVP) is full generation from a text description.
 
-| Criterion | fal.ai | Replicate | GPT Image 1.5 | Cloudinary AI |
-|---|---|---|---|---|
-| Image-to-image (photo enhancement) | Yes — Flux Dev i2i, Topaz upscaler, background removal | Yes — any Replicate model | Yes — GPT Image inpainting | Yes — but transformation-focused, not generative |
-| Text-to-image generation | Yes — Flux 1.1 Pro, Schnell | Yes — Flux, SDXL, anything | Yes — strong prompt adherence | Limited |
-| Latency | Under 3 s (1024×1024), Flux Schnell under 1 s | 5-15 s typical | 5-10 s | Sub-second (transforms), 5-10 s (generative) |
-| Pricing | $0.03/image (Flux Dev i2i), $0.05 (Flux 1.1 Pro) | Per GPU second — less predictable | $0.009-$0.034/image (GPT Image) | Per transformation credit — adds up |
-| TypeScript SDK | Yes — strong official SDK | Yes | Yes (via openai SDK) | Yes |
-| Setup complexity | Low — single API key | Low — single API key | Low — same key as GPT-4o | Medium — CDN config + signed URLs |
-| Food photo quality | Flux models produce photorealistic food imagery | Same (same models available) | Good, slightly over-processed look | Good for background removal |
-| Model variety | 985 curated endpoints | 50k+ community models | Limited (1 model) | Limited |
+| Criterion                          | fal.ai                                                 | Replicate                         | GPT Image 1.5                      | Cloudinary AI                                    |
+| ---------------------------------- | ------------------------------------------------------ | --------------------------------- | ---------------------------------- | ------------------------------------------------ |
+| Image-to-image (photo enhancement) | Yes — Flux Dev i2i, Topaz upscaler, background removal | Yes — any Replicate model         | Yes — GPT Image inpainting         | Yes — but transformation-focused, not generative |
+| Text-to-image generation           | Yes — Flux 1.1 Pro, Schnell                            | Yes — Flux, SDXL, anything        | Yes — strong prompt adherence      | Limited                                          |
+| Latency                            | Under 3 s (1024×1024), Flux Schnell under 1 s          | 5-15 s typical                    | 5-10 s                             | Sub-second (transforms), 5-10 s (generative)     |
+| Pricing                            | $0.03/image (Flux Dev i2i), $0.05 (Flux 1.1 Pro)       | Per GPU second — less predictable | $0.009-$0.034/image (GPT Image)    | Per transformation credit — adds up              |
+| TypeScript SDK                     | Yes — strong official SDK                              | Yes                               | Yes (via openai SDK)               | Yes                                              |
+| Setup complexity                   | Low — single API key                                   | Low — single API key              | Low — same key as GPT-4o           | Medium — CDN config + signed URLs                |
+| Food photo quality                 | Flux models produce photorealistic food imagery        | Same (same models available)      | Good, slightly over-processed look | Good for background removal                      |
+| Model variety                      | 985 curated endpoints                                  | 50k+ community models             | Limited (1 model)                  | Limited                                          |
 
 Cloudinary's strength is its CDN and non-generative transformations (resize, format conversion, background removal). It is not the right tool for AI enhancement of food photos. If you need background removal specifically, Cloudinary's Remove.bg integration is excellent — but fal.ai also provides this via dedicated models.
 
@@ -218,17 +218,17 @@ Replicate is a strong alternative and has better community documentation, but fa
 
 The Campaign Creator needs to turn enhanced product images + text overlays (captions, brand name, hashtags) into 15-30 second short-form clips suitable for Instagram Reels / TikTok. The MVP does not need a complex visual editor — it needs reliable, fast, API-driven assembly from a set of pre-designed templates.
 
-| Criterion | Remotion | Creatomate | Shotstack |
-|---|---|---|---|
-| Infrastructure required | Yes — Lambda or self-hosted Node | None — cloud-rendered | None — cloud-rendered |
-| Template design | Code (React) | Visual editor + JSON API | JSON API (no visual editor) |
-| Render time | 30-120 s (Lambda) | Under 15 s | 30-90 s typical |
-| Team license cost | Free (<4 people) / $100/month (4+) | $54/month (2000 credits) | $49/month (200 credits, ~$0.20/min) |
-| Aspect ratio flexibility | Full control (code) | Responsive templates (one template, multiple ratios) | Fixed per template |
-| Animation quality | Excellent — full React ecosystem | Excellent — keyframes, shadows, filters, 3D | Basic — limited motion effects |
-| TypeScript/JS API | Yes | Yes (REST + Node SDK) | Yes (REST + Node SDK) |
-| Setup time | 1-2 days (Lambda config) | 2-4 hours | 2-4 hours |
-| Maintenance overhead | Medium (Lambda infra) | Low | Low |
+| Criterion                | Remotion                           | Creatomate                                           | Shotstack                           |
+| ------------------------ | ---------------------------------- | ---------------------------------------------------- | ----------------------------------- |
+| Infrastructure required  | Yes — Lambda or self-hosted Node   | None — cloud-rendered                                | None — cloud-rendered               |
+| Template design          | Code (React)                       | Visual editor + JSON API                             | JSON API (no visual editor)         |
+| Render time              | 30-120 s (Lambda)                  | Under 15 s                                           | 30-90 s typical                     |
+| Team license cost        | Free (<4 people) / $100/month (4+) | $54/month (2000 credits)                             | $49/month (200 credits, ~$0.20/min) |
+| Aspect ratio flexibility | Full control (code)                | Responsive templates (one template, multiple ratios) | Fixed per template                  |
+| Animation quality        | Excellent — full React ecosystem   | Excellent — keyframes, shadows, filters, 3D          | Basic — limited motion effects      |
+| TypeScript/JS API        | Yes                                | Yes (REST + Node SDK)                                | Yes (REST + Node SDK)               |
+| Setup time               | 1-2 days (Lambda config)           | 2-4 hours                                            | 2-4 hours                           |
+| Maintenance overhead     | Medium (Lambda infra)              | Low                                                  | Low                                 |
 
 Remotion is the most powerful option and gives complete creative control — but it requires managing Lambda infrastructure, dealing with cold start issues, and paying AWS Lambda costs on top of any licensing. For a small team shipping fast, the operational overhead is not justified at MVP stage. It also requires React expertise for any template changes; a designer cannot iterate on templates without an engineer.
 
@@ -252,17 +252,17 @@ Creatomate is the right level of abstraction: you design templates once in the v
 
 ### Evaluation against project constraints
 
-| Criterion | Vercel | Fly.io | Cloudflare Pages |
-|---|---|---|---|
-| Next.js App Router support | Full, first-class | Good (Docker) | Partial — new features lag |
-| Preview deployments | Yes — automatic per PR | Manual | Yes |
-| Setup time | Minutes | 30-60 min (Dockerfile) | 30-60 min (adapter config) |
-| Background workers | No (function timeout limits) | Yes — persistent VMs | Yes — Workers (duration limits) |
-| Investor demo experience | Excellent — preview URLs | Good | Good |
-| Cold start | None (serverless edge) | Minimal (fast VMs) | None (edge) |
-| Cost at MVP scale | ~$20/month (Pro, 1 seat) | ~$5-20/month (light usage) | Free-$20/month |
-| Cost at scale | Can spike with overages | Predictable (VM-based) | Predictable |
-| Streaming / SSR | Native | Native (container) | Partial |
+| Criterion                  | Vercel                       | Fly.io                     | Cloudflare Pages                |
+| -------------------------- | ---------------------------- | -------------------------- | ------------------------------- |
+| Next.js App Router support | Full, first-class            | Good (Docker)              | Partial — new features lag      |
+| Preview deployments        | Yes — automatic per PR       | Manual                     | Yes                             |
+| Setup time                 | Minutes                      | 30-60 min (Dockerfile)     | 30-60 min (adapter config)      |
+| Background workers         | No (function timeout limits) | Yes — persistent VMs       | Yes — Workers (duration limits) |
+| Investor demo experience   | Excellent — preview URLs     | Good                       | Good                            |
+| Cold start                 | None (serverless edge)       | Minimal (fast VMs)         | None (edge)                     |
+| Cost at MVP scale          | ~$20/month (Pro, 1 seat)     | ~$5-20/month (light usage) | Free-$20/month                  |
+| Cost at scale              | Can spike with overages      | Predictable (VM-based)     | Predictable                     |
+| Streaming / SSR            | Native                       | Native (container)         | Partial                         |
 
 One legitimate concern with Vercel: the Pro plan's overage model (bandwidth at $0.15/GB, function CPU at $0.128/CPU-hour) can surprise teams. After Vercel's September 2025 pricing restructure, there's a default $200 budget cap to prevent runaway costs — this is adequate protection for MVP scale.
 

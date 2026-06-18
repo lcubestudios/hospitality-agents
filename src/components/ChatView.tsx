@@ -14,7 +14,6 @@ import {
   Check,
   ZoomIn,
 } from 'lucide-react'
-import { DirectiveObject } from '@/types/directive'
 
 export type ChatMode = 'quick' | 'campaign'
 
@@ -124,6 +123,98 @@ function parseGenerationResult(text: string): {
   } catch {
     return null
   }
+}
+
+// ─── Photo Upload Widget (inline in chat) ──────────────────────────────────────
+
+interface PhotoUploadWidgetProps {
+  onPhotoUploaded: (photoUrl: string) => void
+}
+
+function PhotoUploadWidget({ onPhotoUploaded }: PhotoUploadWidgetProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+
+  const handleFileChange = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      e.target.value = ''
+
+      setIsUploading(true)
+      setUploadError(null)
+
+      try {
+        const form = new FormData()
+        form.append('file', file)
+
+        const res = await fetch('/api/upload', { method: 'POST', body: form })
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string }
+          throw new Error(err.error ?? 'Upload failed')
+        }
+        const { url } = (await res.json()) as { url: string }
+        onPhotoUploaded(url)
+      } catch (err) {
+        console.error('Upload error:', err)
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        setIsUploading(false)
+      }
+    },
+    [onPhotoUploaded],
+  )
+
+  const handlePhotoDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const file = e.dataTransfer.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      const input = fileInputRef.current
+      if (input) {
+        const dt = new DataTransfer()
+        dt.items.add(file)
+        input.files = dt.files
+        const event = new Event('change', { bubbles: true })
+        input.dispatchEvent(event)
+      }
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  return (
+    <div
+      className="border-border hover:bg-muted/50 rounded-lg border-2 border-dashed p-6 text-center transition-colors"
+      onDrop={handlePhotoDrop}
+      onDragOver={handleDragOver}
+    >
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        onChange={handleFileChange}
+        disabled={isUploading}
+        style={{ display: 'none' }}
+      />
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={isUploading}
+        className="text-primary hover:text-primary/80 cursor-pointer text-sm font-medium disabled:opacity-50"
+      >
+        {isUploading ? 'Uploading...' : 'Click to upload or drag photo here'}
+      </button>
+      {uploadError && (
+        <p className="text-destructive mt-2 text-xs">
+          {uploadError} — Phone photos are fine, we&apos;ll enhance it.
+        </p>
+      )}
+    </div>
+  )
 }
 
 // ─── Lightbox ──────────────────────────────────────────────────────────────────
@@ -374,310 +465,6 @@ interface TriggerGenerationResult {
   error?: string
 }
 
-// Intake state machine
-type IntakeStep = 'photo_upload' | 'question1' | 'question2' | 'question3' | 'done'
-
-interface IntakeState {
-  step: IntakeStep
-  directive: Partial<DirectiveObject & { photoUrl?: string }>
-  holidaySpecified?: string
-}
-
-// Intake Photo Upload
-function PhotoUploadInput({ onPhotoUploaded }: { onPhotoUploaded: (photoUrl: string) => void }) {
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-  const [uploadSuccess, setUploadSuccess] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
-
-  const handlePhotoSelect = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (!file) return
-      e.target.value = ''
-
-      setIsUploading(true)
-      setUploadError(null)
-      setUploadSuccess(false)
-
-      try {
-        const form = new FormData()
-        form.append('file', file)
-
-        const res = await fetch('/api/upload', { method: 'POST', body: form })
-        if (!res.ok) {
-          const err = (await res.json().catch(() => ({}))) as { message?: string }
-          throw new Error(err.message ?? 'Upload failed')
-        }
-        const { url } = (await res.json()) as { url: string }
-        setUploadSuccess(true)
-        onPhotoUploaded(url)
-      } catch (err) {
-        console.error('Upload error:', err)
-        setUploadError(err instanceof Error ? err.message : 'Upload failed')
-      } finally {
-        setIsUploading(false)
-      }
-    },
-    [onPhotoUploaded],
-  )
-
-  const handlePhotoDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const file = e.dataTransfer.files?.[0]
-    if (file && file.type.startsWith('image/')) {
-      const input = fileInputRef.current
-      if (input) {
-        const dt = new DataTransfer()
-        dt.items.add(file)
-        input.files = dt.files
-        const event = new Event('change', { bubbles: true })
-        input.dispatchEvent(event)
-      }
-    }
-  }, [])
-
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }, [])
-
-  return (
-    <div className="space-y-4">
-      {!uploadSuccess && (
-        <>
-          <p className="text-muted-foreground text-sm">Let&apos;s make something amazing</p>
-          <p className="text-foreground text-base font-medium">
-            Upload the product or dish you want to promote.
-          </p>
-          <div
-            className="border-border hover:bg-muted/50 rounded-lg border-2 border-dashed p-8 text-center transition-colors"
-            onDrop={handlePhotoDrop}
-            onDragOver={handleDragOver}
-          >
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              onChange={handlePhotoSelect}
-              disabled={isUploading}
-              style={{ display: 'none' }}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isUploading}
-              className="text-primary hover:text-primary/80 cursor-pointer text-sm font-medium disabled:opacity-50"
-            >
-              {isUploading ? 'Uploading...' : 'Click to upload or drag photo here'}
-            </button>
-          </div>
-          {uploadError && (
-            <p className="text-destructive text-sm">
-              {uploadError} — Phone photos are fine, we&apos;ll enhance it.
-            </p>
-          )}
-        </>
-      )}
-      {uploadSuccess && (
-        <div className="flex flex-col items-center gap-3 rounded-lg bg-green-50 p-4">
-          <div className="flex items-center gap-2">
-            <Check size={16} className="text-green-600" />
-            <p className="text-sm font-medium text-green-700">Photo uploaded!</p>
-          </div>
-          <p className="text-sm text-green-600">Perfect! Now tell me about it.</p>
-        </div>
-      )}
-    </div>
-  )
-}
-
-const ANGLE_OPTIONS = [
-  'New menu item',
-  'Weekly special',
-  'Holiday campaign',
-  'Season launch',
-  'Just because',
-]
-
-const AUDIENCE_OPTIONS = [
-  'Your regulars',
-  'Date night crowd',
-  'Lunch crowd',
-  'New customers',
-  'Everyone',
-]
-
-// Intake Question 1: Free text input
-function Question1Input({ value, onSubmit }: { value: string; onSubmit: (topic: string) => void }) {
-  const [input, setInput] = useState(value || '')
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  const handleSubmit = () => {
-    const trimmed = input.trim()
-    if (trimmed) {
-      onSubmit(trimmed)
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleSubmit()
-    }
-  }
-
-  return (
-    <div className="flex gap-2">
-      <input
-        ref={inputRef}
-        type="text"
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="e.g. our new truffle pasta, weekend brunch special"
-        maxLength={60}
-        className="border-border bg-background text-foreground placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-primary/10 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-1"
-      />
-      <button
-        onClick={handleSubmit}
-        disabled={!input.trim()}
-        className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-all disabled:opacity-25"
-      >
-        <Send size={12} />
-      </button>
-    </div>
-  )
-}
-
-// Intake Question 2: Button options + holiday follow-up
-function Question2Input({ value, onSubmit }: { value: string; onSubmit: (angle: string) => void }) {
-  const [selected, setSelected] = useState<string | null>(value || null)
-  const [holidayText, setHolidayText] = useState('')
-  const [showHolidayInput, setShowHolidayInput] = useState(
-    value && value.includes('Holiday') ? true : false,
-  )
-  const holidayInputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    if (showHolidayInput) {
-      holidayInputRef.current?.focus()
-    }
-  }, [showHolidayInput])
-
-  const handleSelectOption = (option: string) => {
-    setSelected(option)
-    if (option === 'Holiday campaign') {
-      setShowHolidayInput(true)
-    } else {
-      setShowHolidayInput(false)
-      onSubmit(option)
-    }
-  }
-
-  const handleHolidaySubmit = () => {
-    const holiday = holidayText.trim()
-    if (holiday && selected) {
-      onSubmit(`${selected} - ${holiday}`)
-    }
-  }
-
-  const handleHolidayKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault()
-      handleHolidaySubmit()
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
-        {ANGLE_OPTIONS.map((option) => (
-          <button
-            key={option}
-            onClick={() => handleSelectOption(option)}
-            className={[
-              'border-border text-foreground rounded-lg border px-3 py-2 text-xs font-medium transition-all',
-              selected === option
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-background hover:border-primary/40 hover:text-primary',
-            ].join(' ')}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-      {showHolidayInput && (
-        <div className="flex gap-2">
-          <input
-            ref={holidayInputRef}
-            type="text"
-            value={holidayText}
-            onChange={(e) => setHolidayText(e.target.value)}
-            onKeyDown={handleHolidayKeyDown}
-            placeholder="Which holiday?"
-            className="border-border bg-background text-foreground placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-primary/10 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-1"
-          />
-          <button
-            onClick={handleHolidaySubmit}
-            disabled={!holidayText.trim()}
-            className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-all disabled:opacity-25"
-          >
-            <Send size={12} />
-          </button>
-        </div>
-      )}
-    </div>
-  )
-}
-
-// Intake Question 3: Button options (optional)
-function Question3Input({
-  value,
-  onSubmit,
-}: {
-  value: string
-  onSubmit: (audience: string) => void
-}) {
-  const [selected, setSelected] = useState<string | null>(value || null)
-
-  const handleSelectOption = (option: string) => {
-    setSelected(option)
-    onSubmit(option)
-  }
-
-  return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-2">
-        {AUDIENCE_OPTIONS.map((option) => (
-          <button
-            key={option}
-            onClick={() => handleSelectOption(option)}
-            className={[
-              'border-border text-foreground rounded-lg border px-3 py-2 text-xs font-medium transition-all',
-              selected === option
-                ? 'bg-primary text-primary-foreground border-primary'
-                : 'bg-background hover:border-primary/40 hover:text-primary',
-            ].join(' ')}
-          >
-            {option}
-          </button>
-        ))}
-      </div>
-      <button
-        onClick={() => onSubmit('Everyone')}
-        className="border-border bg-background text-muted-foreground hover:text-primary hover:border-primary/40 mt-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all"
-      >
-        Skip this
-      </button>
-    </div>
-  )
-}
-
 export function ChatView({
   mode,
   initialMessages,
@@ -695,11 +482,6 @@ export function ChatView({
   const [pendingGeneration, setPendingGeneration] = useState<PendingGeneration | null>(null)
   const [generationResults, setGenerationResults] = useState<GenerationResult[]>([])
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId ?? null)
-  // Intake state
-  const [intakeState, setIntakeState] = useState<IntakeState>({
-    step: 'photo_upload',
-    directive: {},
-  })
 
   const modeRef = useRef(mode)
   const conversationIdRef = useRef<string | null>(initialConversationId ?? null)
@@ -734,29 +516,19 @@ export function ChatView({
     })
   }, [])
 
-  const openingMessage: UIMessage = useMemo(
-    () => ({
-      id: 'opening',
-      role: 'assistant',
-      content: "Let's make something amazing",
-      parts: [
-        {
-          type: 'text',
-          text: "Let's make something amazing",
-        },
-      ],
-      createdAt: new Date(),
-    }),
-    [],
-  )
-
-  const seedMessages =
-    initialMessages && initialMessages.length > 0 ? initialMessages : [openingMessage]
+  const seedMessages = initialMessages && initialMessages.length > 0 ? initialMessages : []
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
     messages: seedMessages,
     transport,
   })
+
+  // Auto-trigger first assistant message on mount
+  useEffect(() => {
+    if (messages.length === 0 && status !== 'streaming') {
+      sendMessage({ text: '' })
+    }
+  }, [])
 
   // Watch messages for tool invocations from trigger_generation
   // In AI SDK v6, tool parts have type: 'tool-{toolname}' and fields directly on the part
@@ -920,7 +692,6 @@ export function ChatView({
   const isWaiting = status === 'submitted'
   const isStreaming = status === 'streaming'
   const isBusy = isWaiting || isStreaming
-  const hasMessages = messages.length > 0
 
   // Scroll to bottom on new messages or typing
   useEffect(() => {
@@ -1032,304 +803,239 @@ export function ChatView({
   // Determine if we are actively generating (tool called but result not yet appended)
   const isGenerating = pendingGeneration !== null
 
-  // Helper to advance intake
-  const handleIntakeAnswer = (answer: string) => {
-    const { step, directive } = intakeState
-
-    if (step === 'question1') {
-      setIntakeState({
-        step: 'question2',
-        directive: { ...directive, post_topic: answer },
-      })
-    } else if (step === 'question2') {
-      setIntakeState({
-        step: 'question3',
-        directive: { ...directive, angle_or_story: answer },
-      })
-    } else if (step === 'question3') {
-      // All answers collected — mark done
-      const completeDirective: DirectiveObject = {
-        post_topic: directive.post_topic || '',
-        angle_or_story: directive.angle_or_story || '',
-        audience: answer,
-        creative_mode: 'enhanced',
-        photoUrl: directive.photoUrl,
-      }
-      setIntakeState({
-        step: 'done',
-        directive: completeDirective,
-      })
-    }
-  }
-
-  // Handle photo upload from intake
+  // Handle photo upload from the inline photo upload widget
   const handlePhotoUploaded = (photoUrl: string) => {
-    setIntakeState((prev) => ({
-      step: 'question1',
-      directive: { ...prev.directive, photoUrl },
-    }))
+    // Add a synthetic user message showing the uploaded photo
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: generateId(),
+        role: 'user' as const,
+        parts: [
+          {
+            type: 'text' as const,
+            text: `[Uploaded image: ${photoUrl}]`,
+          },
+        ],
+      },
+    ])
+    // Send the photo URL to the assistant via chat
+    doSend('(photo attached)')
   }
-
-  // Show intake UI if not done, otherwise show normal chat
-  const isIntakeDone = intakeState.step === 'done'
 
   return (
     <div className="bg-background flex h-full flex-col">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        {!isIntakeDone && intakeState.step === 'photo_upload' ? (
-          /* Intake flow - photo upload */
-          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
-            <div className="w-full max-w-lg space-y-6">
-              <PhotoUploadInput onPhotoUploaded={handlePhotoUploaded} />
-            </div>
-          </div>
-        ) : !isIntakeDone && intakeState.step === 'question1' ? (
-          /* Intake flow - question 1 */
-          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
-            <div className="w-full max-w-lg space-y-6">
-              <div>
-                <h2 className="text-heading text-foreground">Great shot!</h2>
-                <p className="text-muted-foreground text-sm">Now tell me about it.</p>
-              </div>
-              <div className="space-y-3">
-                <p className="text-caption text-foreground font-medium">What are you promoting?</p>
-                <Question1Input
-                  value={intakeState.directive.post_topic || ''}
-                  onSubmit={handleIntakeAnswer}
-                />
-              </div>
-            </div>
-          </div>
-        ) : !isIntakeDone && intakeState.step === 'question2' ? (
-          /* Intake flow - question 2 */
-          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
-            <div className="w-full max-w-lg space-y-6">
-              <div>
-                <h2 className="text-heading text-foreground">Got it!</h2>
-                <p className="text-muted-foreground text-sm">{intakeState.directive.post_topic}</p>
-              </div>
-              <div className="space-y-3">
-                <p className="text-caption text-foreground font-medium">
-                  What&apos;s the occasion or angle?
-                </p>
-                <Question2Input
-                  value={intakeState.directive.angle_or_story || ''}
-                  onSubmit={handleIntakeAnswer}
-                />
-              </div>
-            </div>
-          </div>
-        ) : !isIntakeDone && intakeState.step === 'question3' ? (
-          /* Intake flow - question 3 */
-          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
-            <div className="w-full max-w-lg space-y-6">
-              <div>
-                <h2 className="text-heading text-foreground">Perfect!</h2>
-                <p className="text-muted-foreground text-sm">
-                  {intakeState.directive.post_topic} &mdash; {intakeState.directive.angle_or_story}
+        <div className="mx-auto w-full max-w-2xl space-y-5 px-6 py-8">
+          {/* Photo upload widget - always visible when no photo uploaded */}
+          {!stagedImage && (
+            <div className="bg-card border-border rounded-2xl border-2 border-dashed p-8 text-center shadow-sm">
+              <div className="mb-4">
+                <Paperclip className="text-primary mx-auto mb-3 h-8 w-8" />
+                <h3 className="text-foreground font-semibold">Upload your photo</h3>
+                <p className="text-muted-foreground mt-1 text-sm">
+                  Drag and drop, or click to select
                 </p>
               </div>
-              <div className="space-y-3">
-                <p className="text-caption text-foreground font-medium">Who are we talking to?</p>
-                <Question3Input
-                  value={intakeState.directive.audience || ''}
-                  onSubmit={handleIntakeAnswer}
-                />
-              </div>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                id="photo-input-top"
+                className="hidden"
+              />
+              <button
+                onClick={() => document.getElementById('photo-input-top')?.click()}
+                disabled={isUploading}
+                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
+              >
+                {isUploading ? 'Uploading...' : 'Choose photo'}
+              </button>
             </div>
-          </div>
-        ) : !hasMessages && isIntakeDone ? (
-          /* Pre-chat with intake complete */
-          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
-            <div className="w-full max-w-lg space-y-6">
-              <div>
-                <h2 className="text-heading text-foreground">That&apos;s everything!</h2>
-                <p className="text-muted-foreground text-sm">Ready to upload your photo?</p>
-              </div>
-            </div>
-          </div>
-        ) : (
-          /* Chat messages */
-          <div className="mx-auto w-full max-w-2xl space-y-5 px-6 py-8">
-            {(messages as UIMessage[]).map((msg, i) => {
-              const isLastAssistant = i === messages.length - 1 && msg.role === 'assistant'
-              const showCursor = isStreaming && isLastAssistant
+          )}
 
-              // Extract text content from text parts only
-              const textContent = msg.parts
-                .filter((p) => p.type === 'text')
-                .map((p) => (p.type === 'text' ? p.text : ''))
-                .join('')
+          {(messages as UIMessage[]).map((msg, i) => {
+            const isLastAssistant = i === messages.length - 1 && msg.role === 'assistant'
+            const showCursor = isStreaming && isLastAssistant
 
-              // If the message contains a trigger_generation tool part and no text, skip it
-              const hasTriggerTool = msg.parts.some((p) => p.type === 'tool-trigger_generation')
-              if (hasTriggerTool && !textContent) return null
+            // Extract text content from text parts only
+            const textContent = msg.parts
+              .filter((p) => p.type === 'text')
+              .map((p) => (p.type === 'text' ? p.text : ''))
+              .join('')
 
-              const uploadedImageUrl = parseUploadedImage(textContent)
+            // If the message contains a trigger_generation tool part and no text, skip it
+            const hasTriggerTool = msg.parts.some((p) => p.type === 'tool-trigger_generation')
+            if (hasTriggerTool && !textContent) return null
 
-              return (
-                <div
-                  key={msg.id}
-                  className={[
-                    'flex flex-col gap-1.5',
-                    msg.role === 'user' ? 'items-end' : 'items-start',
-                  ].join(' ')}
-                  style={{ animation: 'message-in 0.2s ease-out' }}
-                >
-                  {msg.role === 'user' ? (
-                    <div className="flex flex-col gap-2">
-                      {uploadedImageUrl && (
-                        <div className="max-w-[80%] overflow-hidden rounded-lg">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={uploadedImageUrl}
-                            alt="uploaded"
-                            className="w-full rounded-lg object-cover"
-                            style={{ maxHeight: '200px' }}
-                          />
-                        </div>
-                      )}
-                      {textContent && !uploadedImageUrl && (
-                        <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
-                          {textContent}
-                        </div>
-                      )}
-                    </div>
-                  ) : parseGenerationResult(textContent) ? (
-                    <div className="w-full max-w-[85%]">
-                      <GenerationResultBlock text={textContent} />
-                    </div>
-                  ) : textContent ? (
+            const uploadedImageUrl = parseUploadedImage(textContent)
+            // Check if this is an assistant message asking for photo upload
+            const isPhotoUploadPrompt =
+              msg.role === 'assistant' &&
+              !uploadedImageUrl &&
+              (textContent.toLowerCase().includes('upload') ||
+                textContent.toLowerCase().includes('photo') ||
+                textContent.toLowerCase().includes('image') ||
+                textContent.toLowerCase().includes('drag'))
+
+            return (
+              <div
+                key={msg.id}
+                className={[
+                  'flex flex-col gap-1.5',
+                  msg.role === 'user' ? 'items-end' : 'items-start',
+                ].join(' ')}
+                style={{ animation: 'message-in 0.2s ease-out' }}
+              >
+                {msg.role === 'user' ? (
+                  <div className="flex flex-col gap-2">
+                    {uploadedImageUrl && (
+                      <div className="max-w-[80%] overflow-hidden rounded-lg">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={uploadedImageUrl}
+                          alt="uploaded"
+                          className="w-full rounded-lg object-cover"
+                          style={{ maxHeight: '200px' }}
+                        />
+                      </div>
+                    )}
+                    {textContent && !uploadedImageUrl && (
+                      <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
+                        {textContent}
+                      </div>
+                    )}
+                  </div>
+                ) : parseGenerationResult(textContent) ? (
+                  <div className="w-full max-w-[85%]">
+                    <GenerationResultBlock text={textContent} />
+                  </div>
+                ) : textContent ? (
+                  <div className="flex w-full max-w-[85%] flex-col gap-3">
                     <div
-                      className={`bg-card text-foreground max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${showCursor ? 'streaming-cursor' : ''}`}
+                      className={`bg-card text-foreground rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${showCursor ? 'streaming-cursor' : ''}`}
                     >
                       {textContent}
                     </div>
-                  ) : null}
-                </div>
-              )
-            })}
-
-            {isWaiting && <TypingIndicator />}
-
-            {/* Generation in-progress indicator */}
-            {isGenerating && (
-              <div
-                className="flex flex-col items-start"
-                style={{ animation: 'message-in 0.2s ease-out' }}
-              >
-                <GenerationLoadingBlock />
+                    {/* Show photo upload widget after assistant asks for it */}
+                    {isPhotoUploadPrompt && !stagedImage && !stagedImageUrl && (
+                      <PhotoUploadWidget onPhotoUploaded={handlePhotoUploaded} />
+                    )}
+                  </div>
+                ) : null}
               </div>
-            )}
+            )
+          })}
 
-            {error && (
-              <div className="border-destructive/20 bg-destructive/5 text-destructive flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
-                <AlertCircle size={14} className="flex-shrink-0" />
-                Something went wrong. Check your connection and try again.
-              </div>
-            )}
+          {isWaiting && <TypingIndicator />}
 
-            <div ref={bottomRef} />
-          </div>
-        )}
+          {/* Generation in-progress indicator */}
+          {isGenerating && (
+            <div
+              className="flex flex-col items-start"
+              style={{ animation: 'message-in 0.2s ease-out' }}
+            >
+              <GenerationLoadingBlock />
+            </div>
+          )}
+
+          {error && (
+            <div className="border-destructive/20 bg-destructive/5 text-destructive flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
+              <AlertCircle size={14} className="flex-shrink-0" />
+              Something went wrong. Check your connection and try again.
+            </div>
+          )}
+
+          <div ref={bottomRef} />
+        </div>
       </div>
 
       {/* Input */}
-      {isIntakeDone && (
-        <div className="border-border bg-card flex-shrink-0 border-t px-6 py-4">
-          <div className="mx-auto w-full max-w-2xl space-y-3">
-            {/* Input box */}
-            <div className="border-border bg-background focus-within:border-primary/40 focus-within:ring-primary/10 flex flex-col gap-2 rounded-2xl border px-4 py-3 shadow-sm transition-all focus-within:ring-2">
-              {stagedImage && (
-                <div className="relative w-fit">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={stagedImage}
-                    alt="Staged"
-                    className="h-20 w-20 rounded-xl object-cover"
-                  />
-                  {/* Upload progress overlay */}
-                  {isUploading && (
-                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
-                      <Loader2 size={16} className="animate-spin text-white" />
-                    </div>
-                  )}
-                  {/* Upload error indicator */}
-                  {uploadError && !isUploading && (
-                    <div className="bg-destructive/40 absolute inset-0 flex items-center justify-center rounded-xl">
-                      <AlertCircle size={16} className="text-white" />
-                    </div>
-                  )}
-                  <button
-                    onClick={clearStagedImage}
-                    className="bg-foreground text-background absolute -top-1.5 -right-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full shadow"
-                  >
-                    <X size={10} />
-                  </button>
-                </div>
-              )}
-
-              {uploadError && (
-                <p className="text-micro text-destructive">
-                  {uploadError} — tap X to remove and try again.
-                </p>
-              )}
-
-              <div className="flex items-end gap-3">
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-
+      <div className="border-border bg-card flex-shrink-0 border-t px-6 py-4">
+        <div className="mx-auto w-full max-w-2xl space-y-3">
+          {/* Input box */}
+          <div className="border-border bg-background focus-within:border-primary/40 focus-within:ring-primary/10 flex flex-col gap-2 rounded-2xl border px-4 py-3 shadow-sm transition-all focus-within:ring-2">
+            {stagedImage && (
+              <div className="relative w-fit">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={stagedImage} alt="Staged" className="h-20 w-20 rounded-xl object-cover" />
+                {/* Upload progress overlay */}
+                {isUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+                    <Loader2 size={16} className="animate-spin text-white" />
+                  </div>
+                )}
+                {/* Upload error indicator */}
+                {uploadError && !isUploading && (
+                  <div className="bg-destructive/40 absolute inset-0 flex items-center justify-center rounded-xl">
+                    <AlertCircle size={16} className="text-white" />
+                  </div>
+                )}
                 <button
-                  onClick={() => fileRef.current?.click()}
-                  className="text-muted-foreground hover:text-primary mb-0.5 flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
-                  title="Attach photo"
+                  onClick={clearStagedImage}
+                  className="bg-foreground text-background absolute -top-1.5 -right-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full shadow"
                 >
-                  <Paperclip size={15} />
-                </button>
-
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isBusy}
-                  placeholder={
-                    mode === 'quick'
-                      ? 'What are we promoting today?'
-                      : 'Describe your campaign goal...'
-                  }
-                  rows={1}
-                  className="text-foreground placeholder:text-muted-foreground/60 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none disabled:opacity-50"
-                  style={{ maxHeight: '160px' }}
-                />
-
-                <button
-                  onClick={() => doSend(input)}
-                  disabled={!canSend}
-                  className="bg-primary text-primary-foreground hover:bg-primary/85 mb-0.5 flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg transition-all disabled:opacity-25"
-                  title={isUploading ? 'Waiting for upload to complete...' : 'Send'}
-                >
-                  {isUploading ? (
-                    <Loader2 size={13} className="animate-spin" />
-                  ) : (
-                    <Send size={13} />
-                  )}
+                  <X size={10} />
                 </button>
               </div>
-            </div>
+            )}
 
-            <p className="text-micro text-muted-foreground/50 text-center select-none">
-              Enter to send · Shift+Enter for new line
-            </p>
+            {uploadError && (
+              <p className="text-micro text-destructive">
+                {uploadError} — tap X to remove and try again.
+              </p>
+            )}
+
+            <div className="flex items-end gap-3">
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+
+              <button
+                onClick={() => fileRef.current?.click()}
+                className="text-muted-foreground hover:text-primary mb-0.5 flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
+                title="Attach photo"
+              >
+                <Paperclip size={15} />
+              </button>
+
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isBusy}
+                placeholder={
+                  mode === 'quick'
+                    ? 'What are we promoting today?'
+                    : 'Describe your campaign goal...'
+                }
+                rows={1}
+                className="text-foreground placeholder:text-muted-foreground/60 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none disabled:opacity-50"
+                style={{ maxHeight: '160px' }}
+              />
+
+              <button
+                onClick={() => doSend(input)}
+                disabled={!canSend}
+                className="bg-primary text-primary-foreground hover:bg-primary/85 mb-0.5 flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg transition-all disabled:opacity-25"
+                title={isUploading ? 'Waiting for upload to complete...' : 'Send'}
+              >
+                {isUploading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
+              </button>
+            </div>
           </div>
+
+          <p className="text-micro text-muted-foreground/50 text-center select-none">
+            Enter to send · Shift+Enter for new line
+          </p>
         </div>
-      )}
+      </div>
     </div>
   )
 }
