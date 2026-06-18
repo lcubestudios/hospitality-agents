@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Anthropic } from '@anthropic-ai/sdk'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
+import { sanitizeArrayForPrompt } from '@/lib/prompts/sanitizeArrayForPrompt'
 
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
@@ -732,8 +733,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandProfileLines = [
       brand?.business_type && `Venue type: ${brand.business_type}`,
       brand?.food_drink_type && `Food & drink focus: ${brand.food_drink_type}`,
-      brand?.atmosphere?.length && `Atmosphere: ${brand.atmosphere.join(', ')}`,
-      brand?.personality?.length && `Personality: ${brand.personality.join(', ')}`,
+      brand?.atmosphere?.length && `Atmosphere: ${sanitizeArrayForPrompt(brand.atmosphere)}`,
+      brand?.personality?.length && `Personality: ${sanitizeArrayForPrompt(brand.personality)}`,
     ].filter(Boolean)
     const brandProfile = brandProfileLines.join('\n')
 
