@@ -220,15 +220,18 @@ export async function POST(req: Request) {
     tools: {
       trigger_generation: tool({
         description:
-          'Call this when all intake questions are answered and you are ready to generate content. For Quick Post: requires platform, vibe, message, and image_url. For Campaign: requires campaign_theme, start_date, end_date, and posting_frequency. Do not call this until you have collected all required fields.',
+          'Call this when all intake questions are answered and you are ready to generate content. For Quick Post: requires post_topic, angle_or_story, audience, and image_url. For Campaign: requires campaign_theme, start_date, end_date, and posting_frequency. Do not call this until you have collected all required fields.',
         inputSchema: z.object({
           post_topic: z.string().describe('What is being promoted'),
-          platform: z.string().describe('Target platform(s)'),
-          vibe: z.string().optional().describe('Visual style/mood'),
-          message: z.string().optional().describe('Key message or copy direction'),
+          angle_or_story: z.string().describe('The angle, occasion, or story behind this post'),
+          audience: z.string().optional().describe('Target audience for this content'),
           image_url: z.string().optional().describe('Public URL of the uploaded image'),
-          campaign_mode: z.enum(['social', 'ads']).optional().default('social'),
-          // Campaign-specific
+          creative_mode: z
+            .enum(['enhanced', 'editorial', 'cinematic'])
+            .optional()
+            .default('enhanced')
+            .describe('Creative direction mode'),
+          // Campaign-specific (kept for backward compat)
           campaign_theme: z
             .string()
             .optional()
@@ -244,11 +247,10 @@ export async function POST(req: Request) {
         }),
         execute: async (params: {
           post_topic: string
-          platform: string
-          vibe?: string
-          message?: string
+          angle_or_story: string
+          audience?: string
           image_url?: string
-          campaign_mode?: 'social' | 'ads'
+          creative_mode?: 'enhanced' | 'editorial' | 'cinematic'
           campaign_theme?: string
           start_date?: string
           end_date?: string
@@ -278,11 +280,38 @@ export async function POST(req: Request) {
                 .eq('id', conversationId)
             }
 
+            // Prepare DirectiveObject for generation route
+            if (campaign?.id) {
+              // Fire off generation immediately (async)
+              const generationBody = {
+                image_url: params.image_url,
+                post_topic: params.post_topic,
+                angle_or_story: params.angle_or_story,
+                audience: params.audience ?? 'general',
+                creative_mode: params.creative_mode ?? 'enhanced',
+              }
+
+              // Non-blocking fetch to the generation route
+              fetch(
+                `${process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000'}/api/campaigns/${campaign.id}/generate`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify(generationBody),
+                },
+              ).catch((err) => {
+                console.error('Background generation fetch error:', err)
+              })
+            }
+
             return {
               campaign_id: campaign?.id ?? null,
               params: {
-                ...params,
-                // Expose schedule-relevant fields explicitly for the client generate POST body
+                post_topic: params.post_topic,
+                angle_or_story: params.angle_or_story,
+                audience: params.audience,
+                creative_mode: params.creative_mode,
+                image_url: params.image_url,
                 campaign_theme: params.campaign_theme,
                 start_date: params.start_date,
                 end_date: params.end_date,

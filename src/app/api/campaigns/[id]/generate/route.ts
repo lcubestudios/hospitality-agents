@@ -142,6 +142,7 @@ export function buildVisionPrompt({
   postTopic,
   visualStyle,
   promptIntent,
+  directives,
 }: {
   brandName: string
   brandVoice: string
@@ -149,6 +150,11 @@ export function buildVisionPrompt({
   postTopic: string
   visualStyle?: VisualStyle
   promptIntent?: string
+  directives?: {
+    post_topic: string
+    angle_or_story: string
+    audience: string
+  }
 }): string {
   const styleLines = [
     visualStyle?.mood && `- Mood: ${visualStyle.mood}`,
@@ -177,11 +183,18 @@ export function buildVisionPrompt({
 
   const profileBlock = brandProfile ? `\n${brandProfile}` : ''
 
+  const directiveBlock = directives
+    ? `\n[USER DIRECTIVE — HIGHEST PRIORITY]
+Post topic (what to promote): ${directives.post_topic}
+Angle or story (why now, what's the occasion): ${directives.angle_or_story}
+Target audience: ${directives.audience}\n`
+    : ''
+
   return `You are a professional cinematographer and creative director analyzing an uploaded food or drink photo for a premium Instagram campaign reshoot.
 
 Brand: ${brandName || 'not specified'}
 Brand voice: ${brandVoice || 'not specified'}${profileBlock}
-Post topic: ${postTopic || 'not specified'}${templateBlock}${modeBlock}${styleBlock}
+Post topic: ${postTopic || 'not specified'}${directiveBlock}${templateBlock}${modeBlock}${styleBlock}
 
 Your job is to create a Director's Brief for downstream image and video generation.
 
@@ -341,13 +354,23 @@ function buildGeminiPrompt({
   visualStyle,
   promptIntent,
   photoTemplate,
+  directives,
 }: {
   brief: DirectorBrief
   subjectAnchor: string
   visualStyle?: VisualStyle
   promptIntent?: string
   photoTemplate?: string
+  directives?: {
+    post_topic: string
+    angle_or_story: string
+    audience: string
+  }
 }): string {
+  const userDirectiveBlock = directives
+    ? `[USER DIRECTIVE — HIGHEST PRIORITY]\nPromoting: ${directives.post_topic}\nOccasion/Story: ${directives.angle_or_story}\nTarget audience: ${directives.audience}\nShape the scene and framing around this directive.\n\n`
+    : ''
+
   const templateDirective = promptIntent
     ? `[TEMPLATE DIRECTIVE]\n${promptIntent}\nThis directive defines the composition, framing, and shot goal. All other instructions serve it.\n\n`
     : ''
@@ -364,7 +387,7 @@ function buildGeminiPrompt({
 
   // Per-template full prompt branches — template defines composition/framing; quality layer from mode
   if (photoTemplate === 'hero-close-up') {
-    return `${templateDirective}[SHOT GOAL]
+    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
 Maximum intimacy with the hero dish. Fill the frame — the food itself is the entire world.
 Food subject: ${subjectAnchor}
 
@@ -396,7 +419,7 @@ Directive: ${brief.image_final_prompt} Hero close-up — maximum intimacy, food 
   }
 
   if (photoTemplate === 'top-down-spread') {
-    return `${templateDirective}[SHOT GOAL]
+    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
 Overhead editorial spread — multiple elements arranged as a deliberate composition that fills the frame.
 Food subject: ${subjectAnchor} as hero, with supporting items creating the spread.
 
@@ -424,7 +447,7 @@ Directive: ${brief.image_final_prompt} Top-down editorial spread — hero anchor
   }
 
   if (photoTemplate === 'in-setting') {
-    return `${templateDirective}[SHOT GOAL]
+    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
 The dish within its natural environment. Setting tells the story — where this food lives.
 Food subject: ${subjectAnchor}
 
@@ -454,7 +477,7 @@ Directive: ${brief.image_final_prompt} In-setting — dish as hero in its natura
   }
 
   if (photoTemplate === 'editorial-plate') {
-    return `${templateDirective}[SHOT GOAL]
+    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
 Editorial photography of the dish as-is — same food, elevated to magazine quality through superior photography.
 Food subject: ${subjectAnchor}
 
@@ -487,7 +510,7 @@ Directive: ${brief.image_final_prompt} Editorial plate — same dish, magazine-l
   }
 
   if (photoTemplate === 'ingredient-focus') {
-    return `${templateDirective}[SHOT GOAL]
+    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
 A single ingredient or component isolated and elevated — hero-level close-up on one element.
 Food subject: ${subjectAnchor} — isolate the most visually compelling component already present in the dish.
 
@@ -520,7 +543,7 @@ Directive: ${brief.image_final_prompt} Ingredient focus — one component, maxim
   }
 
   if (photoTemplate === 'someone-eating') {
-    return `${templateDirective}[SHOT GOAL]
+    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
 Implied human presence and enjoyment — the dish in a moment of consumption, suggesting a real human encounter without showing a person.
 Food subject: ${subjectAnchor}
 
@@ -549,7 +572,7 @@ Directive: ${brief.image_final_prompt} Implied dining moment — human presence 
   }
 
   if (mode === 'enhanced') {
-    return `${templateDirective}[PRODUCTION TIER]
+    return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
 Camera: Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background: optical depth matching the original photo's character.
 Quality: Master retoucher pass — the technical finish a professional retoucher applies to a RAW file before magazine publication.
 
@@ -586,7 +609,7 @@ Directive: ${brief.image_final_prompt} Finish at master-retoucher level — beyo
     const tier3Line = moodAtmo
       ? `${brief.tier_3_reimagined} Target atmosphere: ${moodAtmo}.`
       : brief.tier_3_reimagined
-    return `${templateDirective}[PRODUCTION TIER]
+    return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
 Camera: Simulated full-frame sensor, 100mm f/1.4 Macro. Subject tack-sharp. Background: artful creamy bokeh, magazine depth.
 Quality: Magazine editorial reshoot — food stylist + creative director + magazine photographer collaboration.
 
@@ -620,7 +643,7 @@ Directive: ${brief.image_final_prompt} Magazine-stylist reshoot — same dish, c
   }
 
   if (mode === 'cinematic') {
-    return `${templateDirective}[PRODUCTION TIER]
+    return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
 Camera: Simulated cinema sensor, 50mm f/1.2. Film-quality single-frame still. Full campaign production. Magazine-cover-grade rendering.
 Quality: Bespoke brand campaign — the dish as hero of a TV-commercial-grade narrative scene.
 
@@ -664,7 +687,7 @@ Directive: ${brief.image_final_prompt} Bespoke campaign — build a TV-commercia
   const tier3Line = moodAtmo
     ? `${brief.tier_3_reimagined} Target atmosphere: ${moodAtmo}.`
     : brief.tier_3_reimagined
-  return `${templateDirective}[PRODUCTION TIER]
+  return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
 Camera: Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background: creamy bokeh.
 Quality: Commercial Editorial — Direct-to-Advertising register. Maximum surface definition. Physics-based specular highlights on all appropriate surfaces.
 
@@ -693,15 +716,31 @@ Natural saturation. True-to-life tones.
 Directive: ${brief.image_final_prompt}`
 }
 
+interface GenerationRequest {
+  image_url?: string
+  visual_style?: VisualStyle
+  prompt_intent?: string
+  photo_template?: string
+  // Directive from chat intake
+  post_topic?: string
+  angle_or_story?: string
+  audience?: string
+  creative_mode?: CreativeMode
+}
+
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: campaignId } = await params
+    const body: GenerationRequest = await req.json()
     const {
       image_url: uploadedImageUrl,
       visual_style: visualStyle,
       prompt_intent: promptIntent,
       photo_template: photoTemplate,
-    } = await req.json()
+      post_topic: directivePostTopic,
+      angle_or_story: directiveAngleOrStory,
+      audience: directiveAudience,
+    } = body
 
     if (!GOOGLE_API_KEY) {
       return NextResponse.json({ message: 'GOOGLE_AI_STUDIO_KEY not configured' }, { status: 500 })
@@ -716,7 +755,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .eq('id', campaignId)
       .single()
 
-    const postTopic = campaign?.post_topic ?? ''
+    // Use directive post_topic if provided, otherwise fall back to campaign post_topic
+    const postTopic = directivePostTopic ?? campaign?.post_topic ?? ''
 
     const { data: brand } = campaign
       ? await supabase
@@ -730,13 +770,30 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const brandName = brand?.name ?? ''
     const brandVoice = brand?.brand_voice ?? ''
+
+    // Pre-flatten arrays before prompt injection
+    const flattenedBrand = brand
+      ? {
+          ...brand,
+          atmosphere: sanitizeArrayForPrompt(brand.atmosphere),
+          personality: sanitizeArrayForPrompt(brand.personality),
+        }
+      : null
+
     const brandProfileLines = [
-      brand?.business_type && `Venue type: ${brand.business_type}`,
-      brand?.food_drink_type && `Food & drink focus: ${brand.food_drink_type}`,
-      brand?.atmosphere?.length && `Atmosphere: ${sanitizeArrayForPrompt(brand.atmosphere)}`,
-      brand?.personality?.length && `Personality: ${sanitizeArrayForPrompt(brand.personality)}`,
+      flattenedBrand?.business_type && `Venue type: ${flattenedBrand.business_type}`,
+      flattenedBrand?.food_drink_type && `Food & drink focus: ${flattenedBrand.food_drink_type}`,
+      flattenedBrand?.atmosphere && `Atmosphere: ${flattenedBrand.atmosphere}`,
+      flattenedBrand?.personality && `Personality: ${flattenedBrand.personality}`,
     ].filter(Boolean)
     const brandProfile = brandProfileLines.join('\n')
+
+    // Build directive from intake fields
+    const directives = {
+      post_topic: directivePostTopic || postTopic,
+      angle_or_story: directiveAngleOrStory || '',
+      audience: directiveAudience || 'general',
+    }
 
     // STEP 1: Vision analysis — Director's Brief
     let brief: DirectorBrief = buildFallbackBrief(postTopic, visualStyle)
@@ -780,6 +837,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
                       postTopic,
                       visualStyle,
                       promptIntent,
+                      directives,
                     }),
                   },
                 ],
@@ -807,6 +865,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       visualStyle,
       promptIntent,
       photoTemplate,
+      directives,
     })
     console.log('Gemini prompt:', geminiPrompt)
 

@@ -14,6 +14,7 @@ import {
   Check,
   ZoomIn,
 } from 'lucide-react'
+import { DirectiveObject } from '@/types/directive'
 
 export type ChatMode = 'quick' | 'campaign'
 
@@ -373,6 +374,201 @@ interface TriggerGenerationResult {
   error?: string
 }
 
+// Intake state machine
+type IntakeStep = 'question1' | 'question2' | 'question3' | 'done'
+
+interface IntakeState {
+  step: IntakeStep
+  directive: Partial<DirectiveObject>
+  holidaySpecified?: string
+}
+
+const ANGLE_OPTIONS = [
+  'New menu item',
+  'Weekly special',
+  'Holiday campaign',
+  'Season launch',
+  'Just because',
+]
+
+const AUDIENCE_OPTIONS = [
+  'Your regulars',
+  'Date night crowd',
+  'Lunch crowd',
+  'New customers',
+  'Everyone',
+]
+
+// Intake Question 1: Free text input
+function Question1Input({ value, onSubmit }: { value: string; onSubmit: (topic: string) => void }) {
+  const [input, setInput] = useState(value || '')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
+
+  const handleSubmit = () => {
+    const trimmed = input.trim()
+    if (trimmed) {
+      onSubmit(trimmed)
+    }
+  }
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleSubmit()
+    }
+  }
+
+  return (
+    <div className="flex gap-2">
+      <input
+        ref={inputRef}
+        type="text"
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="e.g. our new truffle pasta, weekend brunch special"
+        maxLength={60}
+        className="border-border bg-background text-foreground placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-primary/10 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-1"
+      />
+      <button
+        onClick={handleSubmit}
+        disabled={!input.trim()}
+        className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-all disabled:opacity-25"
+      >
+        <Send size={12} />
+      </button>
+    </div>
+  )
+}
+
+// Intake Question 2: Button options + holiday follow-up
+function Question2Input({ value, onSubmit }: { value: string; onSubmit: (angle: string) => void }) {
+  const [selected, setSelected] = useState<string | null>(value || null)
+  const [holidayText, setHolidayText] = useState('')
+  const [showHolidayInput, setShowHolidayInput] = useState(
+    value && value.includes('Holiday') ? true : false,
+  )
+  const holidayInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    if (showHolidayInput) {
+      holidayInputRef.current?.focus()
+    }
+  }, [showHolidayInput])
+
+  const handleSelectOption = (option: string) => {
+    setSelected(option)
+    if (option === 'Holiday campaign') {
+      setShowHolidayInput(true)
+    } else {
+      setShowHolidayInput(false)
+      onSubmit(option)
+    }
+  }
+
+  const handleHolidaySubmit = () => {
+    const holiday = holidayText.trim()
+    if (holiday && selected) {
+      onSubmit(`${selected} - ${holiday}`)
+    }
+  }
+
+  const handleHolidayKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      handleHolidaySubmit()
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
+        {ANGLE_OPTIONS.map((option) => (
+          <button
+            key={option}
+            onClick={() => handleSelectOption(option)}
+            className={[
+              'border-border text-foreground rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+              selected === option
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background hover:border-primary/40 hover:text-primary',
+            ].join(' ')}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      {showHolidayInput && (
+        <div className="flex gap-2">
+          <input
+            ref={holidayInputRef}
+            type="text"
+            value={holidayText}
+            onChange={(e) => setHolidayText(e.target.value)}
+            onKeyDown={handleHolidayKeyDown}
+            placeholder="Which holiday?"
+            className="border-border bg-background text-foreground placeholder:text-muted-foreground/60 focus:border-primary/40 focus:ring-primary/10 flex-1 rounded-lg border px-3 py-2 text-sm outline-none focus:ring-1"
+          />
+          <button
+            onClick={handleHolidaySubmit}
+            disabled={!holidayText.trim()}
+            className="bg-primary text-primary-foreground hover:bg-primary/85 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-xs font-medium transition-all disabled:opacity-25"
+          >
+            <Send size={12} />
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Intake Question 3: Button options (optional)
+function Question3Input({
+  value,
+  onSubmit,
+}: {
+  value: string
+  onSubmit: (audience: string) => void
+}) {
+  const [selected, setSelected] = useState<string | null>(value || null)
+
+  const handleSelectOption = (option: string) => {
+    setSelected(option)
+    onSubmit(option)
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-wrap gap-2">
+        {AUDIENCE_OPTIONS.map((option) => (
+          <button
+            key={option}
+            onClick={() => handleSelectOption(option)}
+            className={[
+              'border-border text-foreground rounded-lg border px-3 py-2 text-xs font-medium transition-all',
+              selected === option
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-background hover:border-primary/40 hover:text-primary',
+            ].join(' ')}
+          >
+            {option}
+          </button>
+        ))}
+      </div>
+      <button
+        onClick={() => onSubmit('Everyone')}
+        className="border-border bg-background text-muted-foreground hover:text-primary hover:border-primary/40 mt-2 rounded-lg border px-3 py-2 text-xs font-medium transition-all"
+      >
+        Skip this
+      </button>
+    </div>
+  )
+}
+
 export function ChatView({ brand, mode, initialMessages, initialConversationId }: ChatViewProps) {
   const [input, setInput] = useState('')
   // stagedImage: local object URL for preview
@@ -386,6 +582,11 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
   const [pendingGeneration, setPendingGeneration] = useState<PendingGeneration | null>(null)
   const [generationResults, setGenerationResults] = useState<GenerationResult[]>([])
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId ?? null)
+  // Intake state
+  const [intakeState, setIntakeState] = useState<IntakeState>({
+    step: 'question1',
+    directive: {},
+  })
 
   const modeRef = useRef(mode)
   const conversationIdRef = useRef<string | null>(initialConversationId ?? null)
@@ -733,16 +934,105 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
   // Determine if we are actively generating (tool called but result not yet appended)
   const isGenerating = pendingGeneration !== null
 
+  // Helper to advance intake
+  const handleIntakeAnswer = (answer: string) => {
+    const { step, directive } = intakeState
+
+    if (step === 'question1') {
+      setIntakeState({
+        step: 'question2',
+        directive: { ...directive, post_topic: answer },
+      })
+    } else if (step === 'question2') {
+      setIntakeState({
+        step: 'question3',
+        directive: { ...directive, angle_or_story: answer },
+      })
+    } else if (step === 'question3') {
+      // All answers collected — mark done
+      const completeDirective: DirectiveObject = {
+        post_topic: directive.post_topic || '',
+        angle_or_story: directive.angle_or_story || '',
+        audience: answer,
+        creative_mode: 'enhanced',
+      }
+      setIntakeState({
+        step: 'done',
+        directive: completeDirective,
+      })
+    }
+  }
+
+  // Show intake UI if not done, otherwise show normal chat
+  const isIntakeDone = intakeState.step === 'done'
+
   return (
     <div className="bg-background flex h-full flex-col">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        {!hasMessages ? (
-          /* Pre-chat */
+        {!isIntakeDone && intakeState.step === 'question1' ? (
+          /* Intake flow - pre-chat */
           <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
-            <div className="w-full max-w-lg space-y-3">
-              <h1 className="text-display text-foreground">{emptyStateHeading}</h1>
-              <p className="text-muted-foreground">{emptyStateSubtitle}</p>
+            <div className="w-full max-w-lg space-y-6">
+              <div>
+                <h1 className="text-display text-foreground mb-2">{emptyStateHeading}</h1>
+                <p className="text-muted-foreground text-sm">{emptyStateSubtitle}</p>
+              </div>
+              <div className="space-y-3">
+                <p className="text-caption text-foreground font-medium">What are you promoting?</p>
+                <Question1Input
+                  value={intakeState.directive.post_topic || ''}
+                  onSubmit={handleIntakeAnswer}
+                />
+              </div>
+            </div>
+          </div>
+        ) : !isIntakeDone && intakeState.step === 'question2' ? (
+          /* Intake flow - question 2 */
+          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
+            <div className="w-full max-w-lg space-y-6">
+              <div>
+                <h2 className="text-heading text-foreground">Got it!</h2>
+                <p className="text-muted-foreground text-sm">{intakeState.directive.post_topic}</p>
+              </div>
+              <div className="space-y-3">
+                <p className="text-caption text-foreground font-medium">
+                  What&apos;s the occasion or angle?
+                </p>
+                <Question2Input
+                  value={intakeState.directive.angle_or_story || ''}
+                  onSubmit={handleIntakeAnswer}
+                />
+              </div>
+            </div>
+          </div>
+        ) : !isIntakeDone && intakeState.step === 'question3' ? (
+          /* Intake flow - question 3 */
+          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
+            <div className="w-full max-w-lg space-y-6">
+              <div>
+                <h2 className="text-heading text-foreground">Perfect!</h2>
+                <p className="text-muted-foreground text-sm">
+                  {intakeState.directive.post_topic} &mdash; {intakeState.directive.angle_or_story}
+                </p>
+              </div>
+              <div className="space-y-3">
+                <p className="text-caption text-foreground font-medium">Who are we talking to?</p>
+                <Question3Input
+                  value={intakeState.directive.audience || ''}
+                  onSubmit={handleIntakeAnswer}
+                />
+              </div>
+            </div>
+          </div>
+        ) : !hasMessages && isIntakeDone ? (
+          /* Pre-chat with intake complete */
+          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
+            <div className="w-full max-w-lg space-y-6">
+              <div>
+                <h2 className="text-heading text-foreground">That&apos;s everything!</h2>
+                <p className="text-muted-foreground text-sm">Ready to upload your photo?</p>
+              </div>
             </div>
           </div>
         ) : (
@@ -832,90 +1122,100 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
       </div>
 
       {/* Input */}
-      <div className="border-border bg-card flex-shrink-0 border-t px-6 py-4">
-        <div className="mx-auto w-full max-w-2xl space-y-3">
-          {/* Input box */}
-          <div className="border-border bg-background focus-within:border-primary/40 focus-within:ring-primary/10 flex flex-col gap-2 rounded-2xl border px-4 py-3 shadow-sm transition-all focus-within:ring-2">
-            {stagedImage && (
-              <div className="relative w-fit">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={stagedImage} alt="Staged" className="h-20 w-20 rounded-xl object-cover" />
-                {/* Upload progress overlay */}
-                {isUploading && (
-                  <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
-                    <Loader2 size={16} className="animate-spin text-white" />
-                  </div>
-                )}
-                {/* Upload error indicator */}
-                {uploadError && !isUploading && (
-                  <div className="bg-destructive/40 absolute inset-0 flex items-center justify-center rounded-xl">
-                    <AlertCircle size={16} className="text-white" />
-                  </div>
-                )}
+      {isIntakeDone && (
+        <div className="border-border bg-card flex-shrink-0 border-t px-6 py-4">
+          <div className="mx-auto w-full max-w-2xl space-y-3">
+            {/* Input box */}
+            <div className="border-border bg-background focus-within:border-primary/40 focus-within:ring-primary/10 flex flex-col gap-2 rounded-2xl border px-4 py-3 shadow-sm transition-all focus-within:ring-2">
+              {stagedImage && (
+                <div className="relative w-fit">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={stagedImage}
+                    alt="Staged"
+                    className="h-20 w-20 rounded-xl object-cover"
+                  />
+                  {/* Upload progress overlay */}
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-xl bg-black/40">
+                      <Loader2 size={16} className="animate-spin text-white" />
+                    </div>
+                  )}
+                  {/* Upload error indicator */}
+                  {uploadError && !isUploading && (
+                    <div className="bg-destructive/40 absolute inset-0 flex items-center justify-center rounded-xl">
+                      <AlertCircle size={16} className="text-white" />
+                    </div>
+                  )}
+                  <button
+                    onClick={clearStagedImage}
+                    className="bg-foreground text-background absolute -top-1.5 -right-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full shadow"
+                  >
+                    <X size={10} />
+                  </button>
+                </div>
+              )}
+
+              {uploadError && (
+                <p className="text-micro text-destructive">
+                  {uploadError} — tap X to remove and try again.
+                </p>
+              )}
+
+              <div className="flex items-end gap-3">
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={handleFileChange}
+                />
+
                 <button
-                  onClick={clearStagedImage}
-                  className="bg-foreground text-background absolute -top-1.5 -right-1.5 flex h-5 w-5 cursor-pointer items-center justify-center rounded-full shadow"
+                  onClick={() => fileRef.current?.click()}
+                  className="text-muted-foreground hover:text-primary mb-0.5 flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
+                  title="Attach photo"
                 >
-                  <X size={10} />
+                  <Paperclip size={15} />
+                </button>
+
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isBusy}
+                  placeholder={
+                    mode === 'quick'
+                      ? 'What are we promoting today?'
+                      : 'Describe your campaign goal...'
+                  }
+                  rows={1}
+                  className="text-foreground placeholder:text-muted-foreground/60 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none disabled:opacity-50"
+                  style={{ maxHeight: '160px' }}
+                />
+
+                <button
+                  onClick={() => doSend(input)}
+                  disabled={!canSend}
+                  className="bg-primary text-primary-foreground hover:bg-primary/85 mb-0.5 flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg transition-all disabled:opacity-25"
+                  title={isUploading ? 'Waiting for upload to complete...' : 'Send'}
+                >
+                  {isUploading ? (
+                    <Loader2 size={13} className="animate-spin" />
+                  ) : (
+                    <Send size={13} />
+                  )}
                 </button>
               </div>
-            )}
-
-            {uploadError && (
-              <p className="text-micro text-destructive">
-                {uploadError} — tap X to remove and try again.
-              </p>
-            )}
-
-            <div className="flex items-end gap-3">
-              <input
-                ref={fileRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={handleFileChange}
-              />
-
-              <button
-                onClick={() => fileRef.current?.click()}
-                className="text-muted-foreground hover:text-primary mb-0.5 flex h-6 w-6 flex-shrink-0 cursor-pointer items-center justify-center rounded-md transition-colors"
-                title="Attach photo"
-              >
-                <Paperclip size={15} />
-              </button>
-
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                disabled={isBusy}
-                placeholder={
-                  mode === 'quick'
-                    ? 'What are we promoting today?'
-                    : 'Describe your campaign goal...'
-                }
-                rows={1}
-                className="text-foreground placeholder:text-muted-foreground/60 flex-1 resize-none bg-transparent text-sm leading-relaxed outline-none disabled:opacity-50"
-                style={{ maxHeight: '160px' }}
-              />
-
-              <button
-                onClick={() => doSend(input)}
-                disabled={!canSend}
-                className="bg-primary text-primary-foreground hover:bg-primary/85 mb-0.5 flex h-7 w-7 flex-shrink-0 cursor-pointer items-center justify-center rounded-lg transition-all disabled:opacity-25"
-                title={isUploading ? 'Waiting for upload to complete...' : 'Send'}
-              >
-                {isUploading ? <Loader2 size={13} className="animate-spin" /> : <Send size={13} />}
-              </button>
             </div>
-          </div>
 
-          <p className="text-micro text-muted-foreground/50 text-center select-none">
-            Enter to send · Shift+Enter for new line
-          </p>
+            <p className="text-micro text-muted-foreground/50 text-center select-none">
+              Enter to send · Shift+Enter for new line
+            </p>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   )
 }
