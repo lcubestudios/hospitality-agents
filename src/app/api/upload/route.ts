@@ -7,8 +7,8 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File
     const campaignId = formData.get('campaign_id') as string
 
-    if (!file || !campaignId) {
-      return NextResponse.json({ message: 'file and campaign_id are required' }, { status: 400 })
+    if (!file) {
+      return NextResponse.json({ message: 'file is required' }, { status: 400 })
     }
 
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
@@ -19,7 +19,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    const publicUrl = await uploadImageToStorage(file, campaignId)
+    // campaign_id is optional (for intake photos) but required for storage routing
+    // If not provided, use a temporary 'intake' prefix
+    const storageCampaignId = campaignId || `intake/${Date.now()}`
+
+    const publicUrl = await uploadImageToStorage(file, storageCampaignId)
     return NextResponse.json({ url: publicUrl })
   } catch (err) {
     console.error('Upload error:', err)

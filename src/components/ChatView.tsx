@@ -375,12 +375,121 @@ interface TriggerGenerationResult {
 }
 
 // Intake state machine
-type IntakeStep = 'question1' | 'question2' | 'question3' | 'done'
+type IntakeStep = 'photo_upload' | 'question1' | 'question2' | 'question3' | 'done'
 
 interface IntakeState {
   step: IntakeStep
-  directive: Partial<DirectiveObject>
+  directive: Partial<DirectiveObject & { photoUrl?: string }>
   holidaySpecified?: string
+}
+
+// Intake Photo Upload
+function PhotoUploadInput({ onPhotoUploaded }: { onPhotoUploaded: (photoUrl: string) => void }) {
+  const [isUploading, setIsUploading] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const handlePhotoSelect = useCallback(
+    async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0]
+      if (!file) return
+      e.target.value = ''
+
+      setIsUploading(true)
+      setUploadError(null)
+      setUploadSuccess(false)
+
+      try {
+        const form = new FormData()
+        form.append('file', file)
+
+        const res = await fetch('/api/upload', { method: 'POST', body: form })
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { message?: string }
+          throw new Error(err.message ?? 'Upload failed')
+        }
+        const { url } = (await res.json()) as { url: string }
+        setUploadSuccess(true)
+        onPhotoUploaded(url)
+      } catch (err) {
+        console.error('Upload error:', err)
+        setUploadError(err instanceof Error ? err.message : 'Upload failed')
+      } finally {
+        setIsUploading(false)
+      }
+    },
+    [onPhotoUploaded],
+  )
+
+  const handlePhotoDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const file = e.dataTransfer.files?.[0]
+    if (file && file.type.startsWith('image/')) {
+      const input = fileInputRef.current
+      if (input) {
+        const dt = new DataTransfer()
+        dt.items.add(file)
+        input.files = dt.files
+        const event = new Event('change', { bubbles: true })
+        input.dispatchEvent(event)
+      }
+    }
+  }, [])
+
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  return (
+    <div className="space-y-4">
+      {!uploadSuccess && (
+        <>
+          <p className="text-muted-foreground text-sm">Let&apos;s make something amazing</p>
+          <p className="text-foreground text-base font-medium">
+            Upload the product or dish you want to promote.
+          </p>
+          <div
+            className="border-border hover:bg-muted/50 rounded-lg border-2 border-dashed p-8 text-center transition-colors"
+            onDrop={handlePhotoDrop}
+            onDragOver={handleDragOver}
+          >
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handlePhotoSelect}
+              disabled={isUploading}
+              style={{ display: 'none' }}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="text-primary hover:text-primary/80 cursor-pointer text-sm font-medium disabled:opacity-50"
+            >
+              {isUploading ? 'Uploading...' : 'Click to upload or drag photo here'}
+            </button>
+          </div>
+          {uploadError && (
+            <p className="text-destructive text-sm">
+              {uploadError} — Phone photos are fine, we&apos;ll enhance it.
+            </p>
+          )}
+        </>
+      )}
+      {uploadSuccess && (
+        <div className="flex flex-col items-center gap-3 rounded-lg bg-green-50 p-4">
+          <div className="flex items-center gap-2">
+            <Check size={16} className="text-green-600" />
+            <p className="text-sm font-medium text-green-700">Photo uploaded!</p>
+          </div>
+          <p className="text-sm text-green-600">Perfect! Now tell me about it.</p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 const ANGLE_OPTIONS = [
@@ -569,7 +678,11 @@ function Question3Input({
   )
 }
 
-export function ChatView({ brand, mode, initialMessages, initialConversationId }: ChatViewProps) {
+export function ChatView({
+  mode,
+  initialMessages,
+  initialConversationId,
+}: Omit<ChatViewProps, 'brand'>) {
   const [input, setInput] = useState('')
   // stagedImage: local object URL for preview
   const [stagedImage, setStagedImage] = useState<string | null>(null)
@@ -584,7 +697,7 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
   const [conversationId, setConversationId] = useState<string | null>(initialConversationId ?? null)
   // Intake state
   const [intakeState, setIntakeState] = useState<IntakeState>({
-    step: 'question1',
+    step: 'photo_upload',
     directive: {},
   })
 
@@ -625,22 +738,16 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
     () => ({
       id: 'opening',
       role: 'assistant',
-      content:
-        mode === 'campaign'
-          ? "What's the campaign for? Tell me the occasion, theme, or launch you're planning around."
-          : 'What do you want to post about today?',
+      content: "Let's make something amazing",
       parts: [
         {
           type: 'text',
-          text:
-            mode === 'campaign'
-              ? "What's the campaign for? Tell me the occasion, theme, or launch you're planning around."
-              : 'What do you want to post about today?',
+          text: "Let's make something amazing",
         },
       ],
       createdAt: new Date(),
     }),
-    [mode],
+    [],
   )
 
   const seedMessages =
@@ -922,15 +1029,6 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
   // Send is disabled while uploading so the user waits for the URL to be ready
   const canSend = (!!input.trim() || !!stagedImage) && !isBusy && !isUploading
 
-  const brandFirstName = brand.name.split(' ')[0]
-
-  const emptyStateHeading = mode === 'quick' ? 'What are we promoting?' : "What's the campaign?"
-
-  const emptyStateSubtitle =
-    mode === 'quick'
-      ? `Drop a photo and tell me what you're selling, ${brandFirstName}.`
-      : `A new menu, upcoming event, seasonal push — whatever it is, tell me about it, ${brandFirstName}.`
-
   // Determine if we are actively generating (tool called but result not yet appended)
   const isGenerating = pendingGeneration !== null
 
@@ -955,12 +1053,21 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
         angle_or_story: directive.angle_or_story || '',
         audience: answer,
         creative_mode: 'enhanced',
+        photoUrl: directive.photoUrl,
       }
       setIntakeState({
         step: 'done',
         directive: completeDirective,
       })
     }
+  }
+
+  // Handle photo upload from intake
+  const handlePhotoUploaded = (photoUrl: string) => {
+    setIntakeState((prev) => ({
+      step: 'question1',
+      directive: { ...prev.directive, photoUrl },
+    }))
   }
 
   // Show intake UI if not done, otherwise show normal chat
@@ -970,13 +1077,20 @@ export function ChatView({ brand, mode, initialMessages, initialConversationId }
     <div className="bg-background flex h-full flex-col">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        {!isIntakeDone && intakeState.step === 'question1' ? (
-          /* Intake flow - pre-chat */
+        {!isIntakeDone && intakeState.step === 'photo_upload' ? (
+          /* Intake flow - photo upload */
+          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
+            <div className="w-full max-w-lg space-y-6">
+              <PhotoUploadInput onPhotoUploaded={handlePhotoUploaded} />
+            </div>
+          </div>
+        ) : !isIntakeDone && intakeState.step === 'question1' ? (
+          /* Intake flow - question 1 */
           <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
             <div className="w-full max-w-lg space-y-6">
               <div>
-                <h1 className="text-display text-foreground mb-2">{emptyStateHeading}</h1>
-                <p className="text-muted-foreground text-sm">{emptyStateSubtitle}</p>
+                <h2 className="text-heading text-foreground">Great shot!</h2>
+                <p className="text-muted-foreground text-sm">Now tell me about it.</p>
               </div>
               <div className="space-y-3">
                 <p className="text-caption text-foreground font-medium">What are you promoting?</p>
