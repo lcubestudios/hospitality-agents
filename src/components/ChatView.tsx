@@ -14,6 +14,7 @@ import {
   Check,
   ZoomIn,
 } from 'lucide-react'
+import { StreamingText } from './StreamingText'
 
 export type ChatMode = 'quick' | 'campaign'
 
@@ -894,10 +895,8 @@ export function ChatView({
                   </div>
                 ) : textContent ? (
                   <div className="flex w-full max-w-[85%] flex-col gap-3">
-                    <div
-                      className={`bg-card text-foreground rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${showCursor ? 'streaming-cursor' : ''}`}
-                    >
-                      {textContent}
+                    <div className="bg-card text-foreground rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm">
+                      <StreamingText text={textContent} isStreaming={showCursor} />
                     </div>
                     {/* Show photo upload widget after assistant asks for it */}
                     {isPhotoUploadPrompt && !stagedImage && !stagedImageUrl && (
