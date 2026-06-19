@@ -516,19 +516,27 @@ export function ChatView({
     })
   }, [])
 
-  const seedMessages = initialMessages && initialMessages.length > 0 ? initialMessages : []
+  const initialGreeting: UIMessage = useMemo(
+    () => ({
+      id: 'greeting',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'text',
+          text: "Hey! Let's create something amazing. First, I need a photo of the product or dish you want to promote.",
+        },
+      ],
+    }),
+    [],
+  )
+
+  const seedMessages =
+    initialMessages && initialMessages.length > 0 ? initialMessages : [initialGreeting]
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
     messages: seedMessages,
     transport,
   })
-
-  // Auto-trigger first assistant message on mount
-  useEffect(() => {
-    if (messages.length === 0 && status !== 'streaming') {
-      sendMessage({ text: '' })
-    }
-  }, [])
 
   // Watch messages for tool invocations from trigger_generation
   // In AI SDK v6, tool parts have type: 'tool-{toolname}' and fields directly on the part
@@ -828,33 +836,6 @@ export function ChatView({
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl space-y-5 px-6 py-8">
-          {/* Photo upload widget - always visible when no photo uploaded */}
-          {!stagedImage && (
-            <div className="bg-card border-border rounded-2xl border-2 border-dashed p-8 text-center shadow-sm">
-              <div className="mb-4">
-                <Paperclip className="text-primary mx-auto mb-3 h-8 w-8" />
-                <h3 className="text-foreground font-semibold">Upload your photo</h3>
-                <p className="text-muted-foreground mt-1 text-sm">
-                  Drag and drop, or click to select
-                </p>
-              </div>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleFileChange}
-                id="photo-input-top"
-                className="hidden"
-              />
-              <button
-                onClick={() => document.getElementById('photo-input-top')?.click()}
-                disabled={isUploading}
-                className="bg-primary text-primary-foreground hover:bg-primary/90 rounded-lg px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50"
-              >
-                {isUploading ? 'Uploading...' : 'Choose photo'}
-              </button>
-            </div>
-          )}
-
           {(messages as UIMessage[]).map((msg, i) => {
             const isLastAssistant = i === messages.length - 1 && msg.role === 'assistant'
             const showCursor = isStreaming && isLastAssistant
