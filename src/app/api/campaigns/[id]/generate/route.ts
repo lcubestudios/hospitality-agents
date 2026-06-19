@@ -946,7 +946,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     const enhancedImageUrl = publicUrlData.publicUrl
 
-    const { data: asset, error: assetError } = await supabase
+    const { error: assetError } = await supabase
       .from('assets')
       .insert({ campaign_id: campaignId, asset_type: 'image', asset_url: enhancedImageUrl })
       .select()
@@ -958,7 +958,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
-    return NextResponse.json({ asset_url: enhancedImageUrl, asset, director_brief: brief })
+    return NextResponse.json({
+      assets: [{ asset_url: enhancedImageUrl }],
+      director_brief: brief,
+    })
   } catch (err) {
     console.error('Generation error:', err)
     return NextResponse.json({ message: 'Generation failed' }, { status: 500 })

@@ -870,24 +870,21 @@ export function ChatView({
                 style={{ animation: 'message-in 0.2s ease-out' }}
               >
                 {msg.role === 'user' ? (
-                  <div className="flex flex-col gap-2">
-                    {uploadedImageUrl && (
-                      <div className="max-w-[80%] overflow-hidden rounded-lg">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={uploadedImageUrl}
-                          alt="uploaded"
-                          className="w-full rounded-lg object-cover"
-                          style={{ maxHeight: '200px' }}
-                        />
-                      </div>
-                    )}
-                    {textContent && !uploadedImageUrl && (
-                      <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
-                        {textContent}
-                      </div>
-                    )}
-                  </div>
+                  uploadedImageUrl ? (
+                    <div className="max-w-[80%] overflow-hidden rounded-lg">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={uploadedImageUrl}
+                        alt="uploaded"
+                        className="w-full rounded-lg object-cover"
+                        style={{ maxHeight: '200px' }}
+                      />
+                    </div>
+                  ) : textContent ? (
+                    <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
+                      {textContent}
+                    </div>
+                  ) : null
                 ) : parseGenerationResult(textContent) ? (
                   <div className="w-full max-w-[85%]">
                     <GenerationResultBlock text={textContent} />
@@ -897,10 +894,15 @@ export function ChatView({
                     <div className="bg-card text-foreground rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm">
                       <StreamingText text={textContent} isStreaming={showCursor} />
                     </div>
-                    {/* Show photo upload widget after assistant asks for it */}
-                    {isPhotoUploadPrompt && !stagedImage && !stagedImageUrl && (
-                      <PhotoUploadWidget onPhotoUploaded={handlePhotoUploaded} />
-                    )}
+                    {/* Show photo upload widget only if: assistant asks for it AND no photo uploaded yet */}
+                    {isPhotoUploadPrompt &&
+                      !stagedImageUrl &&
+                      !messages.some(
+                        (m) =>
+                          parseUploadedImage(
+                            m.parts.map((p) => (p.type === 'text' ? p.text : '')).join(''),
+                          ) !== null,
+                      ) && <PhotoUploadWidget onPhotoUploaded={handlePhotoUploaded} />}
                   </div>
                 ) : null}
               </div>
