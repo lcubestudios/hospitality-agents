@@ -524,13 +524,16 @@ export function ChatView({
     transport,
   })
 
-  // Auto-send initial trigger on mount
+  // Track if we've sent initial trigger
+  const initSentRef = useRef(false)
+
+  // Auto-send initial trigger on mount (once only)
   useEffect(() => {
-    if (messages.length === 0 && status !== 'streaming' && status !== 'submitted') {
+    if (!initSentRef.current && messages.length === 0 && status !== 'streaming') {
+      initSentRef.current = true
       sendMessage({ text: '[init]' })
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [messages.length, status, sendMessage])
 
   // Watch messages for tool invocations from trigger_generation
   // In AI SDK v6, tool parts have type: 'tool-{toolname}' and fields directly on the part
@@ -831,18 +834,21 @@ export function ChatView({
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl space-y-5 px-6 py-8">
           {(messages as UIMessage[]).map((msg, i) => {
-            const isLastAssistant = i === messages.length - 1 && msg.role === 'assistant'
-            const showCursor = isStreaming && isLastAssistant
-
             // Extract text content from text parts only
             const textContent = msg.parts
               .filter((p) => p.type === 'text')
               .map((p) => (p.type === 'text' ? p.text : ''))
               .join('')
 
+            // Skip [init] trigger messages
+            if (textContent === '[init]') return null
+
             // If the message contains a trigger_generation tool part and no text, skip it
             const hasTriggerTool = msg.parts.some((p) => p.type === 'tool-trigger_generation')
             if (hasTriggerTool && !textContent) return null
+
+            const isLastAssistant = i === messages.length - 1 && msg.role === 'assistant'
+            const showCursor = isStreaming && isLastAssistant
 
             const uploadedImageUrl = parseUploadedImage(textContent)
             // Check if this is an assistant message asking for photo upload
