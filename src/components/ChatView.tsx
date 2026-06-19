@@ -517,27 +517,20 @@ export function ChatView({
     })
   }, [])
 
-  const initialGreeting: UIMessage = useMemo(
-    () => ({
-      id: 'greeting',
-      role: 'assistant',
-      parts: [
-        {
-          type: 'text',
-          text: "Hey! Let's create something amazing. First, I need a photo of the product or dish you want to promote.",
-        },
-      ],
-    }),
-    [],
-  )
-
-  const seedMessages =
-    initialMessages && initialMessages.length > 0 ? initialMessages : [initialGreeting]
+  const seedMessages = initialMessages && initialMessages.length > 0 ? initialMessages : []
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
     messages: seedMessages,
     transport,
   })
+
+  // Auto-send initial trigger on mount
+  useEffect(() => {
+    if (messages.length === 0 && status !== 'streaming' && status !== 'submitted') {
+      sendMessage({ text: '[init]' })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Watch messages for tool invocations from trigger_generation
   // In AI SDK v6, tool parts have type: 'tool-{toolname}' and fields directly on the part

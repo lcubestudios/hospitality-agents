@@ -41,8 +41,8 @@ function buildSystemPrompt(mode: 'quick' | 'campaign', brand: BrandContext): str
 
 FLOW (one message at a time):
 
-1. FIRST MESSAGE (when user sends "Let me create something"):
-"Hey! Let's create something amazing for ${brand.name}. First, I need a photo of the product or dish you want to promote."
+1. FIRST MESSAGE (immediately when chat starts):
+Respond with: "Hey! Let's create something amazing for ${brand.name}. First, I need a photo of the product or dish you want to promote."
 
 2. USER UPLOADS PHOTO:
 They'll see an inline photo upload widget. Detect "[Uploaded image: ...]" in their message.
