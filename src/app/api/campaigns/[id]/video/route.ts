@@ -1,12 +1,123 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { Anthropic } from '@anthropic-ai/sdk'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
-import {
-  type DirectorBrief,
-  type VisualStyle,
-  buildVisionPrompt,
-  buildFallbackBrief,
-} from '../generate/route'
+
+// ─── Legacy types (kept here for video route self-sufficiency) ────────────────
+
+type CreativeMode = 'enhanced' | 'editorial' | 'cinematic'
+
+interface VisualStyle {
+  mood?: string
+  lighting?: string
+  shot_type?: string
+  color_palette?: string
+  time_of_day?: string
+  creative_mode?: CreativeMode
+}
+
+interface DirectorBrief {
+  hero_label: string
+  dish_shape: 'tall' | 'wide'
+  camera_angle: string
+  background_subject: string
+  tier_1_locked: string
+  tier_2_enhanced: string
+  tier_3_reimagined: string
+  creative_direction: {
+    lighting_refinement: string
+    lens_intent: string
+    texture_notes: string
+    color_grade: string
+  }
+  kinetic_script: {
+    camera_vector: string
+    parallax_priority: string
+    secondary_motion: string
+  }
+  image_final_prompt: string
+  video_final_prompt: string
+}
+
+function buildFallbackBrief(postTopic: string, visualStyle?: VisualStyle): DirectorBrief {
+  const subject = postTopic || 'food subject'
+  const moodAtmo = [visualStyle?.mood, visualStyle?.time_of_day].filter(Boolean).join(', ')
+  return {
+    hero_label: subject,
+    dish_shape: 'wide',
+    camera_angle: 'Three-quarter overhead, classic food editorial',
+    background_subject: 'surface or environment',
+    tier_1_locked: `${subject} geometry, ingredient placement, plating structure, and background surface identity are fixed. No additions, no deletions.`,
+    tier_2_enhanced:
+      'Refine existing lighting with specular highlights and soft shadow roll-off. Enhance surface textures and optical depth.',
+    tier_3_reimagined: moodAtmo
+      ? `Re-grade background tonal mood to achieve a ${moodAtmo} atmosphere. Add subtle atmospheric depth. Keep visible scene recognizable.`
+      : 'Re-grade background tonal mood for premium editorial feel. Add subtle atmospheric depth. Keep visible scene recognizable.',
+    creative_direction: {
+      lighting_refinement:
+        "Low-Key Chiaroscuro. Rim-lighting from 10 o'clock. Specular highlights on surface. Crushed shadow roll-off.",
+      lens_intent:
+        'Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background bokeh.',
+      texture_notes: 'Specular highlights, surface grain, tactile material quality.',
+      color_grade:
+        'Commercial Editorial Grade — Warm, True-to-Life Tones, Zero Oversaturation, Crushed Blacks in the Shadows.',
+    },
+    kinetic_script: {
+      camera_vector:
+        'Lateral Tracking Shot (Sideways Slide), 4 inches left to right. High Frame-Rate Cinematic Drift.',
+      parallax_priority:
+        'Prioritize background parallax separation — foreground faster than background, maximum 3D depth.',
+      secondary_motion: 'none',
+    },
+    image_final_prompt: `Professional commercial reshoot of ${subject}. Tier 1 locked. Tier 2 lighting refinement with specular highlights. Tier 3 editorial color grade.`,
+    video_final_prompt: `${subject} master footage. Horizontal camera displacement, 4-inch slide. Tier 1 locked. Tier 2 lighting refined. Tier 3 atmosphere re-graded. Natural parallax.`,
+  }
+}
+
+function buildVisionPrompt({
+  brandName,
+  brandVoice,
+  postTopic,
+  promptIntent,
+}: {
+  brandName: string
+  brandVoice: string
+  postTopic: string
+  visualStyle?: VisualStyle
+  promptIntent?: string
+}): string {
+  return `You are a professional cinematographer and creative director analyzing an uploaded food or drink photo for a premium campaign video.
+
+Brand: ${brandName || 'not specified'}
+Brand voice: ${brandVoice || 'not specified'}
+Post topic: ${postTopic || 'not specified'}
+${promptIntent ? `\n[TEMPLATE DIRECTIVE]\n${promptIntent}\n` : ''}
+Return ONLY valid JSON in this exact shape:
+
+{
+  "hero_label": "",
+  "dish_shape": "",
+  "camera_angle": "",
+  "background_subject": "",
+  "tier_1_locked": "",
+  "tier_2_enhanced": "",
+  "tier_3_reimagined": "",
+  "creative_direction": {
+    "lighting_refinement": "",
+    "lens_intent": "",
+    "texture_notes": "",
+    "color_grade": ""
+  },
+  "kinetic_script": {
+    "camera_vector": "",
+    "parallax_priority": "",
+    "secondary_motion": ""
+  },
+  "image_final_prompt": "",
+  "video_final_prompt": ""
+}
+
+Output ONLY valid JSON. No markdown. No explanation.`.trim()
+}
 
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'

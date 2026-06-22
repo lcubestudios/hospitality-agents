@@ -3,72 +3,30 @@ import { Anthropic } from '@anthropic-ai/sdk'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
 import { sanitizeArrayForPrompt } from '@/lib/prompts/sanitizeArrayForPrompt'
 
+export const maxDuration = 300
+
 const GOOGLE_API_KEY = process.env.GOOGLE_AI_STUDIO_KEY
 const BASE_URL = 'https://generativelanguage.googleapis.com/v1beta'
 
-export type CreativeMode = 'enhanced' | 'editorial' | 'cinematic'
+// ─── Claude campaign strategy types ──────────────────────────────────────────
 
-export interface VisualStyle {
-  mood?: string
-  lighting?: string
-  shot_type?: string
-  color_palette?: string
-  time_of_day?: string
-  creative_mode?: CreativeMode
+interface ShotDirection {
+  shot_label: string
+  concept: string
+  food_styling: string
+  set: string
+  color_world: string
+  lighting: string
+  camera: string
+  human_presence: 'none' | 'hands' | 'implied'
 }
 
-function mapLighting(lighting: string): string {
-  switch (lighting) {
-    case 'Natural daylight':
-      return 'Soft diffused window light. Clean bright highlights. Minimal shadows.'
-    case 'Golden hour':
-      return 'Warm directional raking light from 45°. Amber color temperature. Long soft shadows.'
-    case 'Moody/low-lit':
-      return "Low-Key Chiaroscuro. Rim-lighting from 10 o'clock. Deep shadow roll-off. Crushed blacks."
-    case 'Studio bright':
-      return 'Clean even commercial lighting. No visible shadows. Maximum product clarity.'
-    default:
-      return lighting
-  }
+export interface CampaignStrategy {
+  subject_description: string
+  shots: ShotDirection[]
 }
 
-function mapColorPalette(palette: string): string {
-  switch (palette) {
-    case 'Earthy & neutral':
-      return 'Warm earthy editorial grade — natural tones, organic texture, crushed blacks in shadows.'
-    case 'Cool & minimal':
-      return 'Clean cool editorial grade — desaturated highlights, crisp whites, minimal color cast.'
-    case 'Rich & saturated':
-      return 'Rich editorial grade — deep saturated tones, high contrast, vivid but true-to-life.'
-    case 'Dark & moody':
-      return 'Dark editorial grade — low-key tones, crushed blacks, dramatic chiaroscuro.'
-    default:
-      return 'Commercial Editorial Grade — Warm, True-to-Life Tones, Zero Oversaturation, Crushed Blacks in the Shadows.'
-  }
-}
-
-export interface DirectorBrief {
-  hero_label: string
-  dish_shape: 'tall' | 'wide'
-  camera_angle: string
-  background_subject: string
-  tier_1_locked: string
-  tier_2_enhanced: string
-  tier_3_reimagined: string
-  creative_direction: {
-    lighting_refinement: string
-    lens_intent: string
-    texture_notes: string
-    color_grade: string
-  }
-  kinetic_script: {
-    camera_vector: string
-    parallax_priority: string
-    secondary_motion: string
-  }
-  image_final_prompt: string
-  video_final_prompt: string
-}
+// ─── Utilities ────────────────────────────────────────────────────────────────
 
 function safeParseJson<T>(raw: string): T | null {
   const cleaned = raw
@@ -91,642 +49,213 @@ function safeParseJson<T>(raw: string): T | null {
   }
 }
 
-export function buildFallbackBrief(postTopic: string, visualStyle?: VisualStyle): DirectorBrief {
-  const subject = postTopic || 'food subject'
-  const lighting = visualStyle?.lighting
-    ? mapLighting(visualStyle.lighting)
-    : "Low-Key Chiaroscuro. Rim-lighting from 10 o'clock. Specular highlights on surface. Crushed shadow roll-off."
-  const colorGrade = visualStyle?.color_palette
-    ? mapColorPalette(visualStyle.color_palette)
-    : 'Commercial Editorial Grade — Warm, True-to-Life Tones, Zero Oversaturation, Crushed Blacks in the Shadows.'
-  const moodAtmo = [visualStyle?.mood, visualStyle?.time_of_day].filter(Boolean).join(', ')
-  return {
-    hero_label: subject,
-    dish_shape: 'wide',
-    camera_angle:
-      visualStyle?.shot_type === 'Overhead flat lay'
-        ? 'Top-down flat lay'
-        : visualStyle?.shot_type === 'Close-up detail'
-          ? 'Close-up macro, straight-on'
-          : 'Three-quarter overhead, classic food editorial',
-    background_subject: 'surface or environment',
-    tier_1_locked: `${subject} geometry, ingredient placement, plating structure, and background surface identity are fixed. No additions, no deletions.`,
-    tier_2_enhanced:
-      'Refine existing lighting with specular highlights and soft shadow roll-off. Enhance surface textures and optical depth.',
-    tier_3_reimagined: moodAtmo
-      ? `Re-grade background tonal mood to achieve a ${moodAtmo} atmosphere. Add subtle atmospheric depth. Keep visible scene recognizable.`
-      : 'Re-grade background tonal mood for premium editorial feel. Add subtle atmospheric depth. Keep visible scene recognizable.',
-    creative_direction: {
-      lighting_refinement: lighting,
-      lens_intent:
-        'Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background bokeh.',
-      texture_notes: 'Specular highlights, surface grain, tactile material quality.',
-      color_grade: colorGrade,
-    },
-    kinetic_script: {
-      camera_vector:
-        'Lateral Tracking Shot (Sideways Slide), 4 inches left to right. High Frame-Rate Cinematic Drift.',
-      parallax_priority:
-        'Prioritize background parallax separation — foreground faster than background, maximum 3D depth.',
-      secondary_motion: 'none',
-    },
-    image_final_prompt: `Professional commercial reshoot of ${subject}. Tier 1 locked. Tier 2 lighting refinement with specular highlights. Tier 3 editorial color grade.`,
-    video_final_prompt: `${subject} master footage. Horizontal camera displacement, 4-inch slide. Tier 1 locked. Tier 2 lighting refined. Tier 3 atmosphere re-graded. Natural parallax.`,
-  }
-}
+// ─── Step 1: Claude strategy prompt ──────────────────────────────────────────
 
-export function buildVisionPrompt({
+function buildStrategyPrompt({
   brandName,
   brandVoice,
   brandProfile,
   postTopic,
-  visualStyle,
-  promptIntent,
-  directives,
+  angleOrStory,
+  audience,
 }: {
   brandName: string
   brandVoice: string
-  brandProfile?: string
+  brandProfile: string
   postTopic: string
-  visualStyle?: VisualStyle
-  promptIntent?: string
-  directives?: {
-    post_topic: string
-    angle_or_story: string
-    audience: string
-  }
+  angleOrStory: string
+  audience: string
 }): string {
-  const styleLines = [
-    visualStyle?.mood && `- Mood: ${visualStyle.mood}`,
-    visualStyle?.lighting && `- Lighting: ${visualStyle.lighting}`,
-    visualStyle?.shot_type && `- Shot type: ${visualStyle.shot_type}`,
-    visualStyle?.color_palette && `- Color palette: ${visualStyle.color_palette}`,
-    visualStyle?.time_of_day && `- Time of day: ${visualStyle.time_of_day}`,
-  ].filter(Boolean)
-  const styleBlock = styleLines.length
-    ? `\nUser style preferences (bias your creative direction toward these):\n${styleLines.join('\n')}\n`
-    : ''
+  return `You are the entire creative production team for an F&B brand's Instagram content. You've been handed a photo of their food or drink and a brand brief. Your job is to conceive 4 distinct shot directions.
 
-  const templateBlock = promptIntent
-    ? `\n[TEMPLATE DIRECTIVE]\nThe target composition for this shoot: ${promptIntent}\nShape the Director's Brief — especially camera_angle, kinetic_script, and all three tier descriptions — to serve this template intent.\n`
-    : ''
+You are simultaneously:
+- The brand strategist who understands what this brand needs to communicate
+- The creative director who develops the concept for each shot
+- The art director who defines the color world and visual tone
+- The food stylist who decides exactly how the food is presented and treated
+- The set designer who builds the environment — every element in frame is intentional
+- The lighting director who designs the light setup
+- The photographer who frames and shoots it
+- The social strategist who knows what stops a scroll
 
-  const mode = visualStyle?.creative_mode
-  const modeBlock =
-    mode === 'cinematic'
-      ? `\nCreative mode: CINEMATIC. This is a bespoke brand campaign — the dish is the hero of a fully staged narrative scene built around it. Keep the dish recognizable as the same product; it may be re-plated to suit the scene. Build a complete world: a chosen environment (restaurant interior, sunlit terrace, moody bar, kitchen at golden hour, candlelit table, weathered street cart, etc.) AND lifestyle props that tell a story (a glass of wine or cocktail beside the dish, a companion plate in soft background focus, ambient cutlery, table dressing, candles, contextual accents) AND atmospheric storytelling (rising steam, candle flicker, drifting smoke, streaming window light, ambient particles in raking light). TV-commercial-grade scene, not a food photo.\n`
-      : mode === 'editorial'
-        ? `\nCreative mode: EDITORIAL. This is a magazine stylist reshoot. The dish identity is preserved (a burger remains that burger, a pasta remains that pasta) but a food stylist has re-plated it from scratch — garnish redone, sauce drizzles re-styled, herbs replaced, composition re-arranged on the plate. The setting is completely redesigned: a new surface (marble, slate, weathered oak, linen, brushed concrete — chosen to serve the aesthetic), a new lighting design with a deliberate creative stance, a new cohesive color world, magazine-quality composition. Subtle styling elements are acceptable (linen napkin, single utensil, oil drizzle) but NO lifestyle narrative props (no wine glass, no companion plate). The result must be an obviously distinct reshoot — not a filter, not a refinement.\n`
-        : mode === 'enhanced'
-          ? `\nCreative mode: ENHANCED. This is a high-end retoucher pass — the level of work a master retoucher applies to a RAW file before publication. Scene is LOCKED: same surface, same background, same composition, same plating, same garnish, same item count, same light direction. The improvement is technical, not creative: physically accurate re-lighting that preserves direction but fixes balance, reconstructed specular highlights, recovered shadow detail without flattening contrast, true optical subject/background separation, surface micro-texture rendered with material accuracy, corrected white balance and color casts, atmospheric depth between hero and background. Do NOT add drama, mood shifts, atmospheric elements, or stylization that were not present in the original. The result is the same photo, finished beyond what phone editing can produce.\n`
-          : ''
+Study the uploaded photo carefully. Before anything else, describe the food with precision — not just what type of dish it is, but what makes this specific one visually distinct. The exact crust char pattern, the way the sauce is distributed, the melt state of the cheese, the particular cut or fold, the colour of the glaze, the specific garnish placement. These details are what separate this pizza from every other pizza, this cocktail from every other cocktail. They must survive into every shot.
 
-  const profileBlock = brandProfile ? `\n${brandProfile}` : ''
+Then read the brand. Now develop 4 distinct creative directions. Each one is its own strong idea. They don't need to match — they just each need to be something you'd genuinely stop and look at on Instagram.
 
-  const directiveBlock = directives
-    ? `\n[USER DIRECTIVE — HIGHEST PRIORITY]
-Post topic (what to promote): ${directives.post_topic}
-Angle or story (why now, what's the occasion): ${directives.angle_or_story}
-Target audience: ${directives.audience}\n`
-    : ''
+Think bold. Think specific. The best social content has a point of view — it makes you feel something or want something immediately.
 
-  return `You are a professional cinematographer and creative director analyzing an uploaded food or drink photo for a premium Instagram campaign reshoot.
+One critical check before finalising each shot: does the food styling make physical sense with the set? A cheese pull requires lift and angle — it can't happen flat on a table. Hands holding food need a plausible environment for that action. A cross-section needs something to cut on. If the styling and set aren't physically coherent, rethink one of them.
 
 Brand: ${brandName || 'not specified'}
-Brand voice: ${brandVoice || 'not specified'}${profileBlock}
-Post topic: ${postTopic || 'not specified'}${directiveBlock}${templateBlock}${modeBlock}${styleBlock}
+Brand voice: ${brandVoice || 'not specified'}
+${brandProfile ? brandProfile + '\n' : ''}Campaign topic: ${postTopic || 'not specified'}
+${angleOrStory ? `Angle or story: ${angleOrStory}\n` : ''}${audience ? `Target audience: ${audience}\n` : ''}
+Every element you put in the set must earn its place. Nothing accidental, nothing generic. No crumpled napkins, no random clutter, no lazy props. If it's in frame, it's a decision.
 
-Your job is to create a Director's Brief for downstream image and video generation.
-
-Return ONLY valid JSON in this exact shape:
+Return ONLY valid JSON:
 
 {
-  "hero_label": "",
-  "dish_shape": "",
-  "camera_angle": "",
-  "background_subject": "",
-  "tier_1_locked": "",
-  "tier_2_enhanced": "",
-  "tier_3_reimagined": "",
-  "creative_direction": {
-    "lighting_refinement": "",
-    "lens_intent": "",
-    "texture_notes": "",
-    "color_grade": ""
-  },
-  "kinetic_script": {
-    "camera_vector": "",
-    "parallax_priority": "",
-    "secondary_motion": ""
-  },
-  "image_final_prompt": "",
-  "video_final_prompt": ""
+  "subject_description": "highly specific visual description of this exact food — not just what type of dish it is, but what makes this particular one distinct. Crust char pattern, sauce distribution, melt state, specific colours, garnish placement, cut or fold, glaze finish, any unique visual detail. The kind of description that would let someone reproduce this exact dish.",
+  "shots": [
+    {
+      "shot_label": "2–4 word name",
+      "concept": "the creative idea — what this shot makes you feel or want, and why it works for this brand",
+      "food_styling": "exactly how the food is presented — state, treatment, styling action (whole, pulled apart, cross-sectioned, sauce running, held, etc.)",
+      "set": "every intentional element in frame — surface, background, props. If it's not here, it's not in the shot.",
+      "color_world": "the palette and tone — be specific (e.g. warm terracotta and cream, deep jewel tones, soft blush and white, high-contrast monochrome)",
+      "lighting": "the full setup — direction, temperature, quality, what it does to the subject and the mood",
+      "camera": "angle, distance, depth of field — always portrait/vertical orientation",
+      "human_presence": "none | hands | implied"
+    }
+  ]
 }
 
-Rules:
+- shots: exactly 4.
+- subject_description: factual only. What you see.
+- human_presence: exactly one of "none", "hands", "implied".
 
-hero_label:
-- 1–3 word plain dish/drink name.
-
-dish_shape:
-- Classify as exactly one of:
-  - "tall" for burgers, cocktails, shakes, stacked desserts, vertical items
-  - "wide" for bowls, tacos, steaks, plates, platters, flat dishes, spread dishes
-
-camera_angle:
-- Faithfully describe the input photo perspective.
-- Do not invent a new angle.
-
-background_subject:
-- 2–5 words describing what the background physically is.
-- No quality adjectives.
-- Examples: "wood table", "stone countertop", "restaurant booth", "plain wall", "metal tray"
-
-tier_1_locked:
-- Food geometry, item count, ingredient placement, plating structure, and visible background identity are locked.
-- State exactly what must not change.
-- Do not allow new dishes, drinks, utensils, props, hands, people, or expanded table settings.
-
-tier_2_enhanced:
-- Existing lighting quality, surface texture, optical depth, and dimensionality may be refined.
-- Use language like lighting refinement, specular highlights, tactile grain, soft shadow roll-off.
-- Do not replace the dish, plating, or background identity.
-
-tier_3_reimagined:
-- Background grade, tonal mood, atmospheric depth, and subtle effects may be creatively improved.
-- Keep the visible background identity recognizable.
-- Atmosphere may evolve, but the scene must not become a different place.
-
-creative_direction.lighting_refinement:
-- Assess the existing light and subject position. Prescribe refinement toward Low-Key Chiaroscuro or Rim-lighting from an appropriate angle (e.g., 10–2 o'clock range) based on observed geometry.
-- Use physics-based terms: chiaroscuro, rim light, color temperature, specular highlights, crushed shadow roll-off.
-- Do not use: dramatic, glow, redesign, neon, surreal.
-
-creative_direction.lens_intent:
-- Always return exactly: "Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background bokeh."
-
-creative_direction.texture_notes:
-- Use sensory surface language based on the visible subject.
-- Mention only visible or physically plausible details such as condensation, glaze sheen, char, steam, crisp edges, oil sheen, moisture, matte grain.
-
-creative_direction.color_grade:
-- Always return exactly: "Commercial Editorial Grade — Warm, True-to-Life Tones, Zero Oversaturation, Crushed Blacks in the Shadows."
-
-kinetic_script.camera_vector:
-- Choose based on dish_shape.
-- If dish_shape is "tall": return "Vertical Jib Rise, 4 inches upward from plate level. High Frame-Rate Cinematic Drift."
-- If dish_shape is "wide": return "Lateral Tracking Shot (Sideways Slide), 4 inches left to right. High Frame-Rate Cinematic Drift."
-- No pan. No tilt. No orbit. No zoom. No push toward subject. No push-pull.
-
-kinetic_script.parallax_priority:
-- Always return: "Prioritize background parallax separation — foreground faster than background, maximum 3D depth."
-- Keep the hero subject within the center 70% of the 9:16 frame.
-
-kinetic_script.secondary_motion:
-- Physically implied motion only.
-- Examples: rising steam, condensation drift, slight garnish movement.
-- If none is visible or plausible, return "none."
-
-image_final_prompt:
-- 2–3 terse declarative sentences for Gemini.
-- Reference the three tiers.
-- No kinematic language.
-
-video_final_prompt:
-- 2–3 terse declarative sentences for Veo.
-- Use physical cinematography terms only: "master footage," "cinematic plate," "editorial render," "camera displacement."
-- Reference the three tiers and selected camera vector.
-- Never use: "commercial," "ad," "campaign," "reel," "promo," "social media," or any brand/marketing language.
-
-Output ONLY valid JSON.
-No markdown.
-No explanation.`.trim()
+Output ONLY valid JSON. No markdown. No explanation.`.trim()
 }
 
-function buildQualityLayer(visualStyle?: VisualStyle, brief?: DirectorBrief): string {
-  const mode = visualStyle?.creative_mode
-  const lightingLine = visualStyle?.lighting
-    ? mapLighting(visualStyle.lighting)
-    : (brief?.creative_direction.lighting_refinement ??
-      "Low-Key Chiaroscuro. Rim-lighting from 10 o'clock. Specular highlights on surface.")
-  const colorLine = visualStyle?.color_palette
-    ? mapColorPalette(visualStyle.color_palette)
-    : (brief?.creative_direction.color_grade ??
-      'Commercial Editorial Grade — Warm, True-to-Life Tones, Zero Oversaturation, Crushed Blacks in the Shadows.')
-  const moodAtmo = [visualStyle?.mood, visualStyle?.time_of_day].filter(Boolean).join(', ')
+// ─── Step 2: Per-shot Gemini image prompt ─────────────────────────────────────
 
-  if (mode === 'enhanced') {
-    return `[QUALITY — RETOUCHER PASS]
-Master retoucher level. Scene locked — no reframing, no new props, no added elements.
-Lighting: ${lightingLine} Preserve existing direction. Fix intensity and balance only.
-Reconstruct specular highlights on glossy surfaces. Recover shadow detail without flattening contrast.
-Surface micro-texture rendered with material accuracy: wood grain, ceramic glaze, food char, condensation as already present.
-Optical depth through real depth-of-field falloff. Color: correct white balance, restore true-to-life food tones. ${colorLine}
-No mood shift. No new atmospheric elements. Same photo, finished to a level phone editing cannot reach.`
-  }
-  if (mode === 'editorial') {
-    return `[QUALITY — MAGAZINE EDITORIAL]
-Magazine-stylist-level production. Lighting is a deliberate creative stance.
-Lighting design: ${lightingLine}
-${moodAtmo ? `Target atmosphere: ${moodAtmo}.` : ''}
-Color: ${colorLine} A strong cohesive color world with a single identifiable aesthetic.
-Lens: Simulated full-frame sensor, 100mm f/1.4 Macro. Subject tack-sharp. Creamy magazine depth.`
-  }
-  if (mode === 'cinematic') {
-    return `[QUALITY — CAMPAIGN PRODUCTION]
-Bespoke brand campaign. Cinema-grade production.
-Lighting: ${lightingLine} Designed from scratch for the scene.
-Color: ${colorLine}
-${moodAtmo ? `Target atmosphere: ${moodAtmo}.` : ''}
-Lens: Simulated cinema sensor, 50mm f/1.2. Film-quality still.`
-  }
-  return `[QUALITY — COMMERCIAL EDITORIAL]
-Camera: Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background: creamy bokeh.
-Lighting: ${lightingLine}
-Color: ${colorLine}
-${moodAtmo ? `Target atmosphere: ${moodAtmo}.` : ''}
-Premium commercial food editorial. Billboard quality.`
+function buildImagePrompt(
+  shot: ShotDirection,
+  subjectDescription: string,
+  brandName: string,
+): string {
+  const humanPresenceBlock =
+    shot.human_presence === 'hands'
+      ? 'Hands in frame — a real person is holding, reaching for, or handling the food naturally. Hands look lived-in and real, not manicured or stock-photo perfect. No faces, no full figures.'
+      : shot.human_presence === 'implied'
+        ? 'Human presence implied only — a utensil resting mid-use, a portion already taken, a napkin pushed aside. No hands, no people visible. The evidence of someone is the story.'
+        : 'No hands, no people. The food and its environment are the entire frame.'
+
+  return `[SUBJECT — NON-NEGOTIABLE]
+The uploaded photo shows the exact food subject you are photographing. Study it.
+
+These are the specific visual characteristics of this food: ${subjectDescription}
+
+Every one of these details must appear in your image. Do not substitute, generalise, or approximate. Do not make this food look like a generic version of itself. This specific pizza (or whatever the subject is) — with its particular crust char, its exact cheese distribution, its specific colour and texture — is the subject. The composition, angle, and setting change. The food does not.
+
+Do NOT reproduce the composition, framing, crop, or setting of the reference photo. Build an entirely new image per this brief. Only the food itself carries over.
+
+[SHOT: ${shot.shot_label}]
+Concept: ${shot.concept}
+
+[FOOD STYLING]
+${shot.food_styling}
+
+[SET]
+${shot.set}
+
+[COLOR]
+${shot.color_world}
+
+[LIGHT]
+${shot.lighting}
+
+[CAMERA]
+${shot.camera}
+Portrait/vertical orientation — 9:16, built for Instagram.
+
+[PEOPLE]
+${humanPresenceBlock}
+
+[RENDER QUALITY]
+Photograph-quality render for ${brandName || 'this brand'}. Natural depth of field, true-to-life food colours, tactile textures. Feels shot by someone who understands this food and this brand.
+
+[HARD NO — NEVER INCLUDE ANY OF THESE]
+- Text, words, letters, numbers, logos, watermarks, or overlays of any kind — zero exceptions
+- Crumpled, folded, or used napkins or tissues
+- Random clutter or accidental-looking props not specified in the set
+- Busy or undesigned backgrounds — every element in frame is intentional
+- Generic restaurant decor (chalkboard menus, generic signage, stock-looking table settings)
+- Fake-looking or over-manicured hands — if hands are present they look real and lived-in
+- Artificial perfection — no stock photo feel, no CGI sheen
+- Watermarks, copyright marks, or any artifact suggesting a third-party image source
+- Warped, distorted, or anatomically wrong food geometry
+- Artificial glow, neon effects, lens flare, or HDR processing
+- Surreal, fantasy, or non-photorealistic elements
+- Multiple competing focal points — one hero, everything else supports it`.trim()
 }
 
-function buildGeminiPrompt({
-  brief,
-  subjectAnchor,
-  visualStyle,
-  promptIntent,
-  photoTemplate,
-  directives,
-}: {
-  brief: DirectorBrief
-  subjectAnchor: string
-  visualStyle?: VisualStyle
-  promptIntent?: string
-  photoTemplate?: string
-  directives?: {
-    post_topic: string
-    angle_or_story: string
-    audience: string
-  }
-}): string {
-  const userDirectiveBlock = directives
-    ? `[USER DIRECTIVE — HIGHEST PRIORITY]\nPromoting: ${directives.post_topic}\nOccasion/Story: ${directives.angle_or_story}\nTarget audience: ${directives.audience}\nShape the scene and framing around this directive.\n\n`
-    : ''
+// ─── Gemini API call ──────────────────────────────────────────────────────────
 
-  const templateDirective = promptIntent
-    ? `[TEMPLATE DIRECTIVE]\n${promptIntent}\nThis directive defines the composition, framing, and shot goal. All other instructions serve it.\n\n`
-    : ''
+async function generateImageWithGemini(
+  prompt: string,
+  imageBase64: string,
+  mimeType: string,
+): Promise<Buffer | null> {
+  const res = await fetch(
+    `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { text: prompt },
+              ...(imageBase64 ? [{ inline_data: { mime_type: mimeType, data: imageBase64 } }] : []),
+            ],
+          },
+        ],
+        generationConfig: { response_modalities: ['IMAGE'] },
+        safetySettings: [
+          { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
+          { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
+        ],
+      }),
+    },
+  )
 
-  const qualityLayer = buildQualityLayer(visualStyle, brief)
-  const mode = visualStyle?.creative_mode
-  const lightingLine = visualStyle?.lighting
-    ? mapLighting(visualStyle.lighting)
-    : brief.creative_direction.lighting_refinement
-  const colorLine = visualStyle?.color_palette
-    ? mapColorPalette(visualStyle.color_palette)
-    : brief.creative_direction.color_grade
-  const moodAtmo = [visualStyle?.mood, visualStyle?.time_of_day].filter(Boolean).join(', ')
-
-  // Per-template full prompt branches — template defines composition/framing; quality layer from mode
-  if (photoTemplate === 'hero-close-up') {
-    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
-Maximum intimacy with the hero dish. Fill the frame — the food itself is the entire world.
-Food subject: ${subjectAnchor}
-
-[DISH GEOMETRY — LOCKED]
-The food arrangement from the reference photo is preserved. Do not rearrange, restage, or add plating elements not in the original.
-What changes: framing tightens, depth of field deepens, lighting sharpens. The food itself does not change.
-
-[COMPOSITION]
-Framing: Tight three-quarter overhead or straight-on. Dish fills 80%+ of the frame. Background compressed by lens.
-Focal point: One dominant element — the most texturally rich part of the dish. Everything else serves it.
-Rule: Centered or rule-of-thirds anchor. No empty table real estate visible.
-
-[IN FRAME]
-The dish only — primary garnish, sauce detail, and surface texture fully visible.
-No secondary elements. No table setting. No lifestyle props.
-
-[FRAMING RULES]
-No wide shot. No table scene. The environment disappears — only food.
-Background compressed to creamy bokeh. Dish geometry fills frame without crowding.
-
-${qualityLayer}
-
-[GUARDRAILS]
-No lifestyle props. No wine glasses, no cutlery unless already plated. No hands.
-The dish is the only subject. No environment beyond the immediate plate or bowl.
-No warped food geometry. No surreal elements. No text or overlays.
-
-Directive: ${brief.image_final_prompt} Hero close-up — maximum intimacy, food fills the frame. Dish arrangement locked.`
+  if (!res.ok) {
+    const errText = await res.text()
+    console.error(`Gemini generation error (${res.status}):`, errText)
+    return null
   }
 
-  if (photoTemplate === 'top-down-spread') {
-    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
-Overhead editorial spread — multiple elements arranged as a deliberate composition that fills the frame.
-Food subject: ${subjectAnchor} as hero, with supporting items creating the spread.
+  const data = await res.json()
 
-[COMPOSITION]
-Framing: Direct overhead, flat lay. All items on a unified surface. No foreshortening.
-Layout: Hero dish larger and anchored at center or upper-center. Supporting items create a surrounding composition.
-Negative space used intentionally. Grid, scatter, or radial pattern with editorial intent.
-
-[IN FRAME]
-Primary dish as hero plus supporting food elements: sauces, sides, garnish, accompanying items.
-All items on a unified surface. Surface texture visible and deliberate.
-
-[FRAMING RULES]
-Strictly overhead — no angle. All items fully visible, nothing cropped by the frame.
-The arrangement must read as intentional editorial styling, not random placement.
-
-${qualityLayer}
-
-[GUARDRAILS]
-Only food-relevant items in the spread. No lifestyle props (no wine glasses, no non-food cutlery).
-No hands. No people. No text or overlays. No warped food geometry.
-Items must feel deliberately placed, not algorithmically scattered.
-
-Directive: ${brief.image_final_prompt} Top-down editorial spread — hero anchored in a deliberate food arrangement.`
+  if (!data.candidates?.[0]) {
+    console.error('No candidates in Gemini response:', data)
+    return null
   }
 
-  if (photoTemplate === 'in-setting') {
-    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
-The dish within its natural environment. Setting tells the story — where this food lives.
-Food subject: ${subjectAnchor}
+  const imagePart = data.candidates[0].content?.parts?.find(
+    (part: { inlineData?: { mimeType?: string; data?: string } }) =>
+      part.inlineData?.mimeType?.startsWith('image/'),
+  )
 
-[COMPOSITION]
-Framing: Three-quarter angle or slight perspective. The dish is always primary — the setting is always secondary.
-Depth: Dish sharp in foreground or center-frame. Setting provides environmental narrative in the background.
-${moodAtmo ? `Environment atmosphere: ${moodAtmo}.` : ''}
-
-[IN FRAME]
-Hero dish in the foreground or center.
-Visible setting context: table surface, ambient background, environmental elements.
-Setting is recognizable but never dominates the frame.
-
-[FRAMING RULES]
-Dish occupies the primary compositional weight. Setting fills the frame without competing.
-Natural environment — no overly styled or artificial staging.
-
-${qualityLayer}
-
-[GUARDRAILS]
-No added lifestyle staging props (no wine glasses placed in, no candles added if not present).
-No hands. No people. No text or overlays.
-The environment is contextual, not cinematic production design.
-No warped food geometry.
-
-Directive: ${brief.image_final_prompt} In-setting — dish as hero in its natural environment.`
+  if (!imagePart?.inlineData?.data) {
+    console.error(
+      'No image data in Gemini response. Prompt may have been blocked by safety filters.',
+    )
+    return null
   }
 
-  if (photoTemplate === 'editorial-plate') {
-    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
-Editorial photography of the dish as-is — same food, elevated to magazine quality through superior photography.
-Food subject: ${subjectAnchor}
-
-[DISH GEOMETRY — LOCKED]
-The food arrangement from the reference photo is preserved exactly. Do not deconstruct, separate, rearrange, or restage food components.
-Do not impose fine-dining styling on food that isn't fine-dining. A burger stays a burger. A pizza stays a pizza.
-What changes: lighting quality, color grade, background depth, surface material. The food itself does not change.
-
-[COMPOSITION]
-Framing: Three-quarter overhead or elegant slight angle. Full dish clearly visible. Plate not cropped by frame edges.
-The plate edge and surrounding negative space contribute to editorial feel — but food on the plate is as in the reference.
-
-[IN FRAME]
-The dish exactly as photographed — primary components, garnish, and plating arrangement preserved.
-Surface visible at the edges. No competing elements.
-
-[FRAMING RULES]
-Frame to reveal the dish at its most compelling angle. Surface and depth of field create the editorial quality.
-Plate must not be cropped by the frame edges.
-
-${qualityLayer}
-
-[GUARDRAILS]
-No added lifestyle props. No utensils unless already present in reference. No hands.
-No warped food geometry. No text or overlays.
-Do not add fine-dining plating elements (swooshes, microgreens, dots) that are not in the original.
-The dish arrangement is the only version — photograph it beautifully, do not restyle it.
-
-Directive: ${brief.image_final_prompt} Editorial plate — same dish, magazine-level photography. Food arrangement locked.`
-  }
-
-  if (photoTemplate === 'ingredient-focus') {
-    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
-A single ingredient or component isolated and elevated — hero-level close-up on one element.
-Food subject: ${subjectAnchor} — isolate the most visually compelling component already present in the dish.
-
-[DISH GEOMETRY — LOCKED]
-Do not add, remove, or rearrange food components not in the reference. Isolate and zoom into what is already there.
-
-[COMPOSITION]
-Framing: Tight macro. The single hero ingredient fills a significant portion of the frame.
-Focal point: Maximum texture, surface detail, and material quality rendered in the hero ingredient.
-Other dish elements may appear as soft-background support — never competing.
-
-[IN FRAME]
-One dominant ingredient or food component — sharp, detailed, tactile.
-Surrounding dish elements may be present in soft out-of-focus background only.
-Background compressed to near-abstract bokeh.
-
-[FRAMING RULES]
-Single point of focus — the hero ingredient only. Everything else is context.
-No wide dish view. No table scene visible.
-Extreme optical depth — hero sharp, everything else falling away.
-
-${qualityLayer}
-
-[GUARDRAILS]
-No lifestyle props. No table setting. No environment visible.
-No added hands. No text or overlays. No warped food geometry.
-One ingredient is the entire story — no competing visual elements.
-
-Directive: ${brief.image_final_prompt} Ingredient focus — one component, maximum detail and intimacy.`
-  }
-
-  if (photoTemplate === 'someone-eating') {
-    return `${userDirectiveBlock}${templateDirective}[SHOT GOAL]
-Implied human presence and enjoyment — the dish in a moment of consumption, suggesting a real human encounter without showing a person.
-Food subject: ${subjectAnchor}
-
-[COMPOSITION]
-Framing: Three-quarter or close angle. Human scale implied by utensil position or portion state.
-State: Dish mid-consumption — a portion removed, a bite taken, a utensil resting in the food — or posed to suggest imminent eating.
-The "eaten" portion and "remaining" portion create visual tension and craving.
-
-[IN FRAME]
-The dish in its consumption state.
-A utensil may rest in or beside the food: fork mid-bite, spoon resting, chopsticks positioned.
-No hands. No people. No faces. Implied presence through food state only.
-
-[FRAMING RULES]
-The evidence of human presence is the story — not the human.
-Dish fills a significant portion of the frame. The consumption state is clearly readable.
-
-${qualityLayer}
-
-[GUARDRAILS]
-No hands in frame. No people. No faces. No limbs.
-Implied presence only through dish state and utensil positioning.
-No lifestyle props beyond utensils. No text or overlays. No warped food geometry.
-
-Directive: ${brief.image_final_prompt} Implied dining moment — human presence through dish state, never through the human.`
-  }
-
-  if (mode === 'enhanced') {
-    return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
-Camera: Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background: optical depth matching the original photo's character.
-Quality: Master retoucher pass — the technical finish a professional retoucher applies to a RAW file before magazine publication.
-
-[SCENE — FULLY LOCKED]
-${brief.tier_1_locked}
-Hero anchor: ${subjectAnchor}
-Perspective: ${brief.camera_angle}. Preserve exactly. No reframing, no recomposition, no crop changes.
-Surface, background, plating, garnish, item count, ingredient placement: identical to original.
-Original light direction: preserved. Only intensity and balance are refined.
-
-[RETOUCHER PASS]
-${brief.tier_2_enhanced}
-Re-light physically — preserve the original direction, fix balance, recover shadow detail without flattening contrast, control hot highlights.
-Lighting refinement: ${lightingLine} — applied to the existing light direction, not replacing it.
-Reconstruct specular highlights on glossy surfaces, sauces, glassware, oil sheen — physically accurate, never artificial.
-Surface micro-texture rendered with material accuracy: wood grain, ceramic glaze, food char, herb edge, condensation as already visible.
-Optical subject/background separation through real depth-of-field falloff, not artificial blur.
-Texture: ${brief.creative_direction.texture_notes}
-Optics: ${brief.creative_direction.lens_intent}
-Color: correct white balance and color casts. Restore true-to-life food tones. ${colorLine}
-Atmospheric depth between hero and background (subtle air, micro-haze in deep background only).
-
-[GUARDRAILS]
-This is a retouch, not a reinterpretation.
-No added drama. No mood shift. No new surface. No new props. No new background.
-No steam, condensation, ambient particles, or atmospheric elements that were not in the original.
-No cinematic grading. No stylization. No reframing.
-The result must be recognizably the same photo as the original — only finished to a level phone editing cannot reach.
-
-Directive: ${brief.image_final_prompt} Finish at master-retoucher level — beyond what phone editing can do, faithful to the original.`
-  }
-
-  if (mode === 'editorial') {
-    const tier3Line = moodAtmo
-      ? `${brief.tier_3_reimagined} Target atmosphere: ${moodAtmo}.`
-      : brief.tier_3_reimagined
-    return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
-Camera: Simulated full-frame sensor, 100mm f/1.4 Macro. Subject tack-sharp. Background: artful creamy bokeh, magazine depth.
-Quality: Magazine editorial reshoot — food stylist + creative director + magazine photographer collaboration.
-
-[DISH IDENTITY — PRESERVED, RE-PLATED]
-Food subject: ${subjectAnchor}. The dish must remain recognizable as the same product — same general dish type and identity.
-A food stylist has re-plated the dish from scratch: garnish redone, sauce drizzles re-styled, herbs replaced and re-positioned, composition re-arranged on the plate with intentional placement and negative space.
-Perspective family: ${brief.camera_angle} — may be slightly refined for magazine composition.
-
-[SET — COMPLETELY REDESIGNED]
-A new surface chosen to serve the aesthetic and complement this dish: marble, slate, weathered oak, brushed concrete, linen, stone — pick what makes this image iconic.
-The background is rebuilt. The world around the dish is restaged from scratch.
-Subtle styling elements allowed if they serve the composition: linen napkin, single utensil, oil drizzle on the surface, herb stem placement, scattered crumbs that read as deliberate. NO lifestyle narrative props.
-${tier3Line}
-
-[LIGHTING DESIGN]
-${lightingLine} A deliberate creative lighting stance — distinct in character from the original. May be moody chiaroscuro, bright airy daylight, golden raking light, or cool minimalist depending on the aesthetic chosen.
-Texture: ${brief.creative_direction.texture_notes}
-Color: ${colorLine} A strong, cohesive color world that gives this image a single recognizable identity.
-
-[COMPOSITION]
-Magazine-quality framing. Rule of thirds, leading lines, intentional negative space.
-The dish is the unmistakable hero. The set serves it.
-
-[GUARDRAILS]
-The dish identity must remain unmistakable as the original product — no transforming a burger into something else.
-No lifestyle narrative props (no full glass of wine, no companion plate, no candles). That is Cinematic territory.
-No surreal or CGI elements. No added people or hands.
-The reshoot must look obviously different from the original — not a filter, not a refinement.
-
-Directive: ${brief.image_final_prompt} Magazine-stylist reshoot — same dish, completely new image identity.`
-  }
-
-  if (mode === 'cinematic') {
-    return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
-Camera: Simulated cinema sensor, 50mm f/1.2. Film-quality single-frame still. Full campaign production. Magazine-cover-grade rendering.
-Quality: Bespoke brand campaign — the dish as hero of a TV-commercial-grade narrative scene.
-
-[DISH IDENTITY — PRESERVED]
-Food subject: ${subjectAnchor}. The dish must remain recognizable as the same product. It may be re-plated to suit the scene composition.
-
-[SCENE — FULLY STAGED]
-Build a complete bespoke environment around this dish. A chosen location with narrative purpose: restaurant interior, sunlit terrace, moody bar, marble kitchen counter at golden hour, candlelit dinner table, weathered street-food cart — whatever makes this dish iconic.
-${moodAtmo ? `Target atmosphere: ${moodAtmo}.` : ''}
-
-[LIFESTYLE STAGING]
-Add complementary props that tell a story about when and why someone would crave this dish:
-- A glass of wine, beer, or cocktail beside it
-- A second complementary plate or food element in soft background focus
-- Ambient cutlery, napkins, table dressing
-- Candles, ambient florals, table accents
-- Context-appropriate accents (lemon wedge near seafood, espresso cup beside dessert, herb sprigs and oils near pasta)
-Every prop earns its place — narrative, not clutter.
-
-[ATMOSPHERIC STORYTELLING]
-Build texture into the air. Rising steam from a hot dish. Light condensation on a cold drink. Drifting smoke from a grill. Window light streaming. Candle flicker glow. Ambient particles caught in raking light. Soft haze in the deep background. These elements live in the world, not as overlays.
-
-[LIGHTING & GRADE]
-${lightingLine}
-${colorLine}
-Cinematic lighting designed from scratch for this scene. Let light shape the world — direction, color temperature, falloff, atmosphere all serve the campaign mood.
-
-[COMPOSITION]
-Narrative scene composition. The dish is the focal point, but the world around it has depth, props, and story. Multi-subject framing where the hero is unmistakable and the supporting elements add context.
-
-[GUARDRAILS]
-The dish must remain recognizable as the original product.
-No added people or hands in frame.
-No text, graphics, or overlays.
-No warped food geometry. No surreal or CGI feel — this must read as a real, photographed campaign scene.
-
-Directive: ${brief.image_final_prompt} Bespoke campaign — build a TV-commercial-grade world around this dish.`
-  }
-
-  // Default fallback
-  const tier3Line = moodAtmo
-    ? `${brief.tier_3_reimagined} Target atmosphere: ${moodAtmo}.`
-    : brief.tier_3_reimagined
-  return `${userDirectiveBlock}${templateDirective}[PRODUCTION TIER]
-Camera: Simulated full-frame sensor, 100mm f/1.8 Macro. Subject tack-sharp. Background: creamy bokeh.
-Quality: Commercial Editorial — Direct-to-Advertising register. Maximum surface definition. Physics-based specular highlights on all appropriate surfaces.
-
-[TIER 1 — LOCKED]
-${brief.tier_1_locked}
-Hero anchor: ${subjectAnchor}
-Perspective: ${brief.camera_angle}. Do not flip or radically recompose.
-
-[TIER 2 — ENHANCED]
-${brief.tier_2_enhanced}
-Lighting: ${lightingLine}
-Texture: ${brief.creative_direction.texture_notes}
-Optics: ${brief.creative_direction.lens_intent}
-
-[TIER 3 — REIMAGINED]
-${tier3Line}
-Color: ${colorLine}
-
-[GUARDRAILS]
-Premium commercial food editorial. Billboard quality.
-No new objects. No added hands. No added people. No change to item count. No altered plating.
-No glowing halos. No neon effects. No artificial saturation. No CGI look. No warped food geometry.
-Render all surfaces with organic, tactile grain. Soft shadow roll-off and physics-based specular highlights only.
-Natural saturation. True-to-life tones.
-
-Directive: ${brief.image_final_prompt}`
+  return Buffer.from(imagePart.inlineData.data, 'base64')
 }
+
+// ─── Request interface ────────────────────────────────────────────────────────
 
 interface GenerationRequest {
   image_url?: string
-  visual_style?: VisualStyle
-  prompt_intent?: string
-  photo_template?: string
-  // Directive from chat intake
   post_topic?: string
   angle_or_story?: string
   audience?: string
-  creative_mode?: CreativeMode
+  campaign_mode?: 'social' | 'ads'
+  campaign_theme?: string
+  start_date?: string
+  end_date?: string
+  posting_frequency?: string
 }
+
+// ─── Route handler ────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -734,9 +263,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const body: GenerationRequest = await req.json()
     const {
       image_url: uploadedImageUrl,
-      visual_style: visualStyle,
-      prompt_intent: promptIntent,
-      photo_template: photoTemplate,
       post_topic: directivePostTopic,
       angle_or_story: directiveAngleOrStory,
       audience: directiveAudience,
@@ -755,7 +281,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .eq('id', campaignId)
       .single()
 
-    // Use directive post_topic if provided, otherwise fall back to campaign post_topic
     const postTopic = directivePostTopic ?? campaign?.post_topic ?? ''
 
     const { data: brand } = campaign
@@ -771,32 +296,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandName = brand?.name ?? ''
     const brandVoice = brand?.brand_voice ?? ''
 
-    // Pre-flatten arrays before prompt injection
-    const flattenedBrand = brand
-      ? {
-          ...brand,
-          atmosphere: sanitizeArrayForPrompt(brand.atmosphere),
-          personality: sanitizeArrayForPrompt(brand.personality),
-        }
-      : null
-
     const brandProfileLines = [
-      flattenedBrand?.business_type && `Venue type: ${flattenedBrand.business_type}`,
-      flattenedBrand?.food_drink_type && `Food & drink focus: ${flattenedBrand.food_drink_type}`,
-      flattenedBrand?.atmosphere && `Atmosphere: ${flattenedBrand.atmosphere}`,
-      flattenedBrand?.personality && `Personality: ${flattenedBrand.personality}`,
+      brand?.business_type && `Venue type: ${brand.business_type}`,
+      brand?.food_drink_type && `Food & drink focus: ${brand.food_drink_type}`,
+      brand?.atmosphere?.length && `Atmosphere: ${sanitizeArrayForPrompt(brand.atmosphere, 5)}`,
+      brand?.personality?.length && `Personality: ${sanitizeArrayForPrompt(brand.personality, 5)}`,
     ].filter(Boolean)
     const brandProfile = brandProfileLines.join('\n')
 
-    // Build directive from intake fields
-    const directives = {
-      post_topic: directivePostTopic || postTopic,
-      angle_or_story: directiveAngleOrStory || '',
-      audience: directiveAudience || 'general',
-    }
-
-    // STEP 1: Vision analysis — Director's Brief
-    let brief: DirectorBrief = buildFallbackBrief(postTopic, visualStyle)
+    // ── Fetch and encode uploaded image ────────────────────────────────────────
     let uploadedBase64 = ''
     let uploadedMimeType = 'image/jpeg'
 
@@ -807,160 +315,163 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           const imgBuffer = await imgRes.arrayBuffer()
           uploadedBase64 = Buffer.from(imgBuffer).toString('base64')
           uploadedMimeType = imgRes.headers.get('content-type')?.split(';')[0] || 'image/jpeg'
-
-          const client = new Anthropic()
-          const visionRes = await client.messages.create({
-            model: 'claude-sonnet-4-6',
-            max_tokens: 1500,
-            messages: [
-              {
-                role: 'user',
-                content: [
-                  {
-                    type: 'image',
-                    source: {
-                      type: 'base64',
-                      media_type: uploadedMimeType as
-                        | 'image/jpeg'
-                        | 'image/png'
-                        | 'image/gif'
-                        | 'image/webp',
-                      data: uploadedBase64,
-                    },
-                  },
-                  {
-                    type: 'text',
-                    text: buildVisionPrompt({
-                      brandName,
-                      brandVoice,
-                      brandProfile,
-                      postTopic,
-                      visualStyle,
-                      promptIntent,
-                      directives,
-                    }),
-                  },
-                ],
-              },
-            ],
-          })
-
-          const raw = visionRes.content?.[0]?.type === 'text' ? visionRes.content[0].text : ''
-          const parsed = safeParseJson<DirectorBrief>(raw)
-          if (parsed?.hero_label) brief = parsed
-          console.log('Vision analysis result:', JSON.stringify(brief, null, 2))
         }
       } catch (err) {
-        console.warn('Vision analysis failed, using fallback brief:', err)
+        console.warn('Failed to fetch uploaded image:', err)
       }
     }
 
-    const subjectAnchor = postTopic.trim() || brief.hero_label
-    console.log('Subject anchor:', subjectAnchor)
+    // ── STEP 1: Claude campaign strategy ──────────────────────────────────────
+    let strategy: CampaignStrategy | null = null
 
-    // STEP 2: Image generation with Gemini 2.5 Flash
-    const geminiPrompt = buildGeminiPrompt({
-      brief,
-      subjectAnchor,
-      visualStyle,
-      promptIntent,
-      photoTemplate,
-      directives,
-    })
-    console.log('Gemini prompt:', geminiPrompt)
-
-    const genRes = await fetch(
-      `${BASE_URL}/models/gemini-2.5-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [
+    if (uploadedBase64) {
+      try {
+        const client = new Anthropic()
+        const strategyRes = await client.messages.create({
+          model: 'claude-sonnet-4-6',
+          max_tokens: 2000,
+          messages: [
             {
-              parts: [
-                { text: geminiPrompt },
-                ...(uploadedBase64
-                  ? [{ inline_data: { mime_type: uploadedMimeType, data: uploadedBase64 } }]
-                  : []),
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'base64',
+                    media_type: uploadedMimeType as
+                      | 'image/jpeg'
+                      | 'image/png'
+                      | 'image/gif'
+                      | 'image/webp',
+                    data: uploadedBase64,
+                  },
+                },
+                {
+                  type: 'text',
+                  text: buildStrategyPrompt({
+                    brandName,
+                    brandVoice,
+                    brandProfile,
+                    postTopic,
+                    angleOrStory: directiveAngleOrStory || '',
+                    audience: directiveAudience || 'general',
+                  }),
+                },
               ],
             },
           ],
-          generationConfig: { response_modalities: ['IMAGE'] },
-          safetySettings: [
-            { category: 'HARM_CATEGORY_HATE_SPEECH', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_SEXUALLY_EXPLICIT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_DANGEROUS_CONTENT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_HARASSMENT', threshold: 'BLOCK_ONLY_HIGH' },
-            { category: 'HARM_CATEGORY_CIVIC_INTEGRITY', threshold: 'BLOCK_ONLY_HIGH' },
-          ],
-        }),
-      },
-    )
+        })
 
-    if (!genRes.ok) {
-      const errText = await genRes.text()
-      console.error(`Gemini generation error (${genRes.status}):`, errText)
-      return NextResponse.json({ message: 'Image generation failed' }, { status: 500 })
+        const raw = strategyRes.content?.[0]?.type === 'text' ? strategyRes.content[0].text : ''
+        const parsed = safeParseJson<CampaignStrategy>(raw)
+        if (parsed?.subject_description && Array.isArray(parsed.shots) && parsed.shots.length > 0) {
+          strategy = parsed
+          console.log('Campaign strategy:', JSON.stringify(strategy, null, 2))
+        } else {
+          console.warn('Claude strategy response did not match expected shape, using fallback')
+        }
+      } catch (err) {
+        console.warn('Claude strategy call failed, using fallback:', err)
+      }
     }
 
-    const genData = await genRes.json()
-
-    if (!genData.candidates?.[0]) {
-      console.error('No candidates in Gemini response:', genData)
-      return NextResponse.json({ message: 'Image generation failed' }, { status: 500 })
+    // ── Fallback strategy: 1 generic shot ─────────────────────────────────────
+    if (!strategy) {
+      const fallbackSubject = postTopic.trim() || 'food subject'
+      strategy = {
+        subject_description: fallbackSubject,
+        shots: [
+          {
+            shot_label: 'Hero shot',
+            concept:
+              'The dish at its most honest and appealing — no concept, just the food doing the work.',
+            food_styling: 'Natural presentation as-is, full dish visible',
+            set: 'Worn oak surface, dark ambient background',
+            color_world: 'Warm, earthy, natural tones',
+            lighting:
+              'Soft directional light from upper left, warm temperature, gentle shadow roll-off',
+            camera:
+              'Three-quarter overhead, mid-range, dish fills 70% of frame, portrait orientation',
+            human_presence: 'none',
+          },
+        ],
+      }
     }
 
-    const imagePart = genData.candidates[0].content?.parts?.find(
-      (part: { inlineData?: { mimeType?: string; data?: string } }) =>
-        part.inlineData?.mimeType?.startsWith('image/'),
+    // Clamp to 4 shots maximum
+    const shots = strategy!.shots.slice(0, 4)
+    const subjectDescription = strategy!.subject_description
+
+    // ── STEP 2 & 3: Build prompts and generate images in parallel ─────────────
+    const imagePrompts = shots.map((shot) => buildImagePrompt(shot, subjectDescription, brandName))
+
+    console.log(`Generating ${shots.length} images in parallel...`)
+    const generatedBuffers = await Promise.all(
+      imagePrompts.map((prompt, i) => {
+        console.log(`Gemini prompt [shot ${i + 1}]:`, prompt.substring(0, 200) + '...')
+        return generateImageWithGemini(prompt, uploadedBase64, uploadedMimeType)
+      }),
     )
 
-    if (!imagePart?.inlineData?.data) {
-      console.error(
-        'No image data in Gemini response. Prompt may have been blocked by safety filters.',
-      )
+    // ── STEP 4: Upload successful images to Supabase Storage ──────────────────
+    const assets: Array<{ asset_url: string; shot_label: string }> = []
+
+    await Promise.all(
+      generatedBuffers.map(async (buffer, i) => {
+        if (!buffer) {
+          console.warn(`Shot ${i + 1} generation failed, skipping`)
+          return
+        }
+
+        const shot = shots[i]
+        const storagePath = `${campaignId}/shot-${i + 1}.jpg`
+
+        const { error: uploadError } = await supabase.storage
+          .from('campaign-uploads')
+          .upload(storagePath, buffer, { contentType: 'image/jpeg', upsert: true })
+
+        if (uploadError) {
+          console.error(`Storage upload error for shot ${i + 1}:`, uploadError.message)
+          return
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from('campaign-uploads')
+          .getPublicUrl(storagePath)
+
+        const assetUrl = publicUrlData.publicUrl
+
+        const { error: assetError } = await supabase
+          .from('assets')
+          .insert({ campaign_id: campaignId, asset_type: 'image', asset_url: assetUrl })
+          .select()
+          .single()
+
+        if (assetError) {
+          console.error(`Asset insert error for shot ${i + 1}:`, assetError.message)
+          return
+        }
+
+        assets.push({ asset_url: assetUrl, shot_label: shot.shot_label })
+      }),
+    )
+
+    if (assets.length === 0) {
+      await supabase.from('campaigns').update({ status: 'failed' }).eq('id', campaignId)
       return NextResponse.json(
         {
           message:
-            'Image generation blocked - try describing colors/shapes instead of product types',
+            'Image generation blocked — try describing colors/shapes instead of product types',
         },
         { status: 500 },
       )
     }
 
-    const generatedBuffer = Buffer.from(imagePart.inlineData.data, 'base64')
-
-    // STEP 3: Upload to Supabase Storage
-    const storagePath = `${campaignId}/enhanced.jpg`
-    const { error: uploadError } = await supabase.storage
-      .from('campaign-uploads')
-      .upload(storagePath, generatedBuffer, { contentType: 'image/jpeg', upsert: true })
-
-    if (uploadError) {
-      return NextResponse.json({ message: uploadError.message }, { status: 400 })
-    }
-
-    const { data: publicUrlData } = supabase.storage
-      .from('campaign-uploads')
-      .getPublicUrl(storagePath)
-
-    const enhancedImageUrl = publicUrlData.publicUrl
-
-    const { error: assetError } = await supabase
-      .from('assets')
-      .insert({ campaign_id: campaignId, asset_type: 'image', asset_url: enhancedImageUrl })
-      .select()
-      .single()
-
-    if (assetError) {
-      return NextResponse.json({ message: assetError.message }, { status: 400 })
-    }
-
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
     return NextResponse.json({
-      assets: [{ asset_url: enhancedImageUrl }],
-      director_brief: brief,
+      assets,
+      campaign_strategy: strategy,
     })
   } catch (err) {
     console.error('Generation error:', err)

@@ -14,8 +14,36 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import type { DirectorBrief, CreativeMode } from '@/app/api/campaigns/[id]/generate/route'
 import type { ArchiveEntry } from '@/components/ArchivesTab'
+
+// ─── Legacy generation types (used by video route) ────────────────────────────
+
+/** @deprecated Creative modes removed from image generation — kept for video route compatibility */
+type CreativeMode = 'enhanced' | 'editorial' | 'cinematic'
+
+/** @deprecated Director's Brief — kept for video route compatibility */
+interface DirectorBrief {
+  hero_label: string
+  dish_shape: 'tall' | 'wide'
+  camera_angle: string
+  background_subject: string
+  tier_1_locked: string
+  tier_2_enhanced: string
+  tier_3_reimagined: string
+  creative_direction: {
+    lighting_refinement: string
+    lens_intent: string
+    texture_notes: string
+    color_grade: string
+  }
+  kinetic_script: {
+    camera_vector: string
+    parallax_priority: string
+    secondary_motion: string
+  }
+  image_final_prompt: string
+  video_final_prompt: string
+}
 import { SocialMockups } from '@/components/SocialMockups'
 
 // ─── Types ────────────────────────────────────────────────────────────────────

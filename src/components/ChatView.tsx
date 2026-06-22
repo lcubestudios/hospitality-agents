@@ -14,7 +14,6 @@ import {
   Check,
   ZoomIn,
 } from 'lucide-react'
-import { StreamingText } from './StreamingText'
 
 export type ChatMode = 'quick' | 'campaign'
 
@@ -124,98 +123,6 @@ function parseGenerationResult(text: string): {
   } catch {
     return null
   }
-}
-
-// ─── Photo Upload Widget (inline in chat) ──────────────────────────────────────
-
-interface PhotoUploadWidgetProps {
-  onPhotoUploaded: (photoUrl: string) => void
-}
-
-function PhotoUploadWidget({ onPhotoUploaded }: PhotoUploadWidgetProps) {
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const [isUploading, setIsUploading] = useState(false)
-  const [uploadError, setUploadError] = useState<string | null>(null)
-
-  const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0]
-      if (!file) return
-      e.target.value = ''
-
-      setIsUploading(true)
-      setUploadError(null)
-
-      try {
-        const form = new FormData()
-        form.append('file', file)
-
-        const res = await fetch('/api/upload', { method: 'POST', body: form })
-        if (!res.ok) {
-          const err = (await res.json().catch(() => ({}))) as { error?: string }
-          throw new Error(err.error ?? 'Upload failed')
-        }
-        const { url } = (await res.json()) as { url: string }
-        onPhotoUploaded(url)
-      } catch (err) {
-        console.error('Upload error:', err)
-        setUploadError(err instanceof Error ? err.message : 'Upload failed')
-      } finally {
-        setIsUploading(false)
-      }
-    },
-    [onPhotoUploaded],
-  )
-
-  const handlePhotoDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-    const file = e.dataTransfer.files?.[0]
-    if (file && file.type.startsWith('image/')) {
-      const input = fileInputRef.current
-      if (input) {
-        const dt = new DataTransfer()
-        dt.items.add(file)
-        input.files = dt.files
-        const event = new Event('change', { bubbles: true })
-        input.dispatchEvent(event)
-      }
-    }
-  }, [])
-
-  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault()
-    e.stopPropagation()
-  }, [])
-
-  return (
-    <div
-      className="border-border hover:bg-muted/50 rounded-lg border-2 border-dashed p-6 text-center transition-colors"
-      onDrop={handlePhotoDrop}
-      onDragOver={handleDragOver}
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/jpeg,image/png,image/webp"
-        onChange={handleFileChange}
-        disabled={isUploading}
-        style={{ display: 'none' }}
-      />
-      <button
-        onClick={() => fileInputRef.current?.click()}
-        disabled={isUploading}
-        className="text-primary hover:text-primary/80 cursor-pointer text-sm font-medium disabled:opacity-50"
-      >
-        {isUploading ? 'Uploading...' : 'Click to upload or drag photo here'}
-      </button>
-      {uploadError && (
-        <p className="text-destructive mt-2 text-xs">
-          {uploadError} — Phone photos are fine, we&apos;ll enhance it.
-        </p>
-      )}
-    </div>
-  )
 }
 
 // ─── Lightbox ──────────────────────────────────────────────────────────────────
@@ -466,11 +373,7 @@ interface TriggerGenerationResult {
   error?: string
 }
 
-export function ChatView({
-  mode,
-  initialMessages,
-  initialConversationId,
-}: Omit<ChatViewProps, 'brand'>) {
+export function ChatView({ brand, mode, initialMessages, initialConversationId }: ChatViewProps) {
   const [input, setInput] = useState('')
   // stagedImage: local object URL for preview
   const [stagedImage, setStagedImage] = useState<string | null>(null)
@@ -517,23 +420,35 @@ export function ChatView({
     })
   }, [])
 
-  const seedMessages = initialMessages && initialMessages.length > 0 ? initialMessages : []
+  const openingMessage: UIMessage = useMemo(
+    () => ({
+      id: 'opening',
+      role: 'assistant',
+      content:
+        mode === 'campaign'
+          ? "What's the campaign for? Tell me the occasion, theme, or launch you're planning around."
+          : 'What do you want to post about today?',
+      parts: [
+        {
+          type: 'text',
+          text:
+            mode === 'campaign'
+              ? "What's the campaign for? Tell me the occasion, theme, or launch you're planning around."
+              : 'What do you want to post about today?',
+        },
+      ],
+      createdAt: new Date(),
+    }),
+    [mode],
+  )
+
+  const seedMessages =
+    initialMessages && initialMessages.length > 0 ? initialMessages : [openingMessage]
 
   const { messages, sendMessage, status, error, setMessages } = useChat({
     messages: seedMessages,
     transport,
   })
-
-  // Track if we've sent initial trigger
-  const initSentRef = useRef(false)
-
-  // Auto-send initial trigger on mount (once only)
-  useEffect(() => {
-    if (!initSentRef.current && messages.length === 0 && status !== 'streaming') {
-      initSentRef.current = true
-      sendMessage({ text: '[init]' })
-    }
-  }, [messages.length, status, sendMessage])
 
   // Watch messages for tool invocations from trigger_generation
   // In AI SDK v6, tool parts have type: 'tool-{toolname}' and fields directly on the part
@@ -624,8 +539,8 @@ export function ChatView({
         }
 
         const data = (await res.json()) as {
-          assets: Array<{ asset_url: string }>
-          director_brief?: unknown
+          assets: Array<{ asset_url: string; shot_label?: string }>
+          campaign_strategy?: unknown
         }
 
         // Generate a contextual caption for Quick Post (one caption for all images)
@@ -697,6 +612,7 @@ export function ChatView({
   const isWaiting = status === 'submitted'
   const isStreaming = status === 'streaming'
   const isBusy = isWaiting || isStreaming
+  const hasMessages = messages.length > 0
 
   // Scroll to bottom on new messages or typing
   useEffect(() => {
@@ -805,131 +721,114 @@ export function ChatView({
   // Send is disabled while uploading so the user waits for the URL to be ready
   const canSend = (!!input.trim() || !!stagedImage) && !isBusy && !isUploading
 
+  const brandFirstName = brand.name.split(' ')[0]
+
+  const emptyStateHeading = mode === 'quick' ? 'What are we promoting?' : "What's the campaign?"
+
+  const emptyStateSubtitle =
+    mode === 'quick'
+      ? `Drop a photo and tell me what you're selling, ${brandFirstName}.`
+      : `A new menu, upcoming event, seasonal push — whatever it is, tell me about it, ${brandFirstName}.`
+
   // Determine if we are actively generating (tool called but result not yet appended)
   const isGenerating = pendingGeneration !== null
-
-  // Handle photo upload from the inline photo upload widget
-  const handlePhotoUploaded = (photoUrl: string) => {
-    // Add a synthetic user message showing the uploaded photo
-    setMessages((prev) => [
-      ...prev,
-      {
-        id: generateId(),
-        role: 'user' as const,
-        parts: [
-          {
-            type: 'text' as const,
-            text: `[Uploaded image: ${photoUrl}]`,
-          },
-        ],
-      },
-    ])
-    // Send the photo URL to the assistant via chat
-    doSend('(photo attached)')
-  }
 
   return (
     <div className="bg-background flex h-full flex-col">
       {/* Messages */}
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-2xl space-y-5 px-6 py-8">
-          {(messages as UIMessage[]).map((msg, i) => {
-            // Extract text content from text parts only
-            const textContent = msg.parts
-              .filter((p) => p.type === 'text')
-              .map((p) => (p.type === 'text' ? p.text : ''))
-              .join('')
+        {!hasMessages ? (
+          /* Pre-chat */
+          <div className="flex h-full flex-col items-center justify-center px-6 pb-28">
+            <div className="w-full max-w-lg space-y-3">
+              <h1 className="text-display text-foreground">{emptyStateHeading}</h1>
+              <p className="text-muted-foreground">{emptyStateSubtitle}</p>
+            </div>
+          </div>
+        ) : (
+          /* Chat messages */
+          <div className="mx-auto w-full max-w-2xl space-y-5 px-6 py-8">
+            {(messages as UIMessage[]).map((msg, i) => {
+              const isLastAssistant = i === messages.length - 1 && msg.role === 'assistant'
+              const showCursor = isStreaming && isLastAssistant
 
-            // Skip [init] trigger messages
-            if (textContent === '[init]') return null
+              // Extract text content from text parts only
+              const textContent = msg.parts
+                .filter((p) => p.type === 'text')
+                .map((p) => (p.type === 'text' ? p.text : ''))
+                .join('')
 
-            // If the message contains a trigger_generation tool part and no text, skip it
-            const hasTriggerTool = msg.parts.some((p) => p.type === 'tool-trigger_generation')
-            if (hasTriggerTool && !textContent) return null
+              // If the message contains a trigger_generation tool part and no text, skip it
+              const hasTriggerTool = msg.parts.some((p) => p.type === 'tool-trigger_generation')
+              if (hasTriggerTool && !textContent) return null
 
-            const isLastAssistant = i === messages.length - 1 && msg.role === 'assistant'
-            const showCursor = isStreaming && isLastAssistant
+              const uploadedImageUrl = parseUploadedImage(textContent)
 
-            const uploadedImageUrl = parseUploadedImage(textContent)
-            // Check if this is an assistant message asking for photo upload
-            const isPhotoUploadPrompt =
-              msg.role === 'assistant' &&
-              !uploadedImageUrl &&
-              (textContent.toLowerCase().includes('upload') ||
-                textContent.toLowerCase().includes('photo') ||
-                textContent.toLowerCase().includes('image') ||
-                textContent.toLowerCase().includes('drag'))
-
-            return (
-              <div
-                key={msg.id}
-                className={[
-                  'flex flex-col gap-1.5',
-                  msg.role === 'user' ? 'items-end' : 'items-start',
-                ].join(' ')}
-                style={{ animation: 'message-in 0.2s ease-out' }}
-              >
-                {msg.role === 'user' ? (
-                  uploadedImageUrl ? (
-                    <div className="max-w-[80%] overflow-hidden rounded-lg">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={uploadedImageUrl}
-                        alt="uploaded"
-                        className="w-full rounded-lg object-cover"
-                        style={{ maxHeight: '200px' }}
-                      />
+              return (
+                <div
+                  key={msg.id}
+                  className={[
+                    'flex flex-col gap-1.5',
+                    msg.role === 'user' ? 'items-end' : 'items-start',
+                  ].join(' ')}
+                  style={{ animation: 'message-in 0.2s ease-out' }}
+                >
+                  {msg.role === 'user' ? (
+                    <div className="flex flex-col gap-2">
+                      {uploadedImageUrl && (
+                        <div className="max-w-[80%] overflow-hidden rounded-lg">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={uploadedImageUrl}
+                            alt="uploaded"
+                            className="w-full rounded-lg object-cover"
+                            style={{ maxHeight: '200px' }}
+                          />
+                        </div>
+                      )}
+                      {textContent && !uploadedImageUrl && (
+                        <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
+                          {textContent}
+                        </div>
+                      )}
+                    </div>
+                  ) : parseGenerationResult(textContent) ? (
+                    <div className="w-full max-w-[85%]">
+                      <GenerationResultBlock text={textContent} />
                     </div>
                   ) : textContent ? (
-                    <div className="bg-foreground text-background max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed">
+                    <div
+                      className={`bg-card text-foreground max-w-[85%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${showCursor ? 'streaming-cursor' : ''}`}
+                    >
                       {textContent}
                     </div>
-                  ) : null
-                ) : parseGenerationResult(textContent) ? (
-                  <div className="w-full max-w-[85%]">
-                    <GenerationResultBlock text={textContent} />
-                  </div>
-                ) : textContent ? (
-                  <div className="flex w-full max-w-[85%] flex-col gap-3">
-                    <div className="bg-card text-foreground rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm">
-                      <StreamingText text={textContent} isStreaming={showCursor} />
-                    </div>
-                    {/* Show photo upload widget only if: assistant asks for it AND no photo uploaded yet */}
-                    {isPhotoUploadPrompt &&
-                      !stagedImageUrl &&
-                      !messages.some(
-                        (m) =>
-                          parseUploadedImage(
-                            m.parts.map((p) => (p.type === 'text' ? p.text : '')).join(''),
-                          ) !== null,
-                      ) && <PhotoUploadWidget onPhotoUploaded={handlePhotoUploaded} />}
-                  </div>
-                ) : null}
+                  ) : null}
+                </div>
+              )
+            })}
+
+            {isWaiting && <TypingIndicator />}
+
+            {/* Generation in-progress indicator */}
+            {isGenerating && (
+              <div
+                className="flex flex-col items-start"
+                style={{ animation: 'message-in 0.2s ease-out' }}
+              >
+                <GenerationLoadingBlock />
               </div>
-            )
-          })}
+            )}
 
-          {isWaiting && <TypingIndicator />}
+            {error && (
+              <div className="border-destructive/20 bg-destructive/5 text-destructive flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
+                <AlertCircle size={14} className="flex-shrink-0" />
+                Something went wrong. Check your connection and try again.
+              </div>
+            )}
 
-          {/* Generation in-progress indicator */}
-          {isGenerating && (
-            <div
-              className="flex flex-col items-start"
-              style={{ animation: 'message-in 0.2s ease-out' }}
-            >
-              <GenerationLoadingBlock />
-            </div>
-          )}
-
-          {error && (
-            <div className="border-destructive/20 bg-destructive/5 text-destructive flex items-center gap-2 rounded-xl border px-4 py-3 text-sm">
-              <AlertCircle size={14} className="flex-shrink-0" />
-              Something went wrong. Check your connection and try again.
-            </div>
-          )}
-
-          <div ref={bottomRef} />
-        </div>
+            <div ref={bottomRef} />
+          </div>
+        )}
       </div>
 
       {/* Input */}

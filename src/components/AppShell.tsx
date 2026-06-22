@@ -163,7 +163,7 @@ export function AppShell({ brand }: AppShellProps) {
               <span className="text-foreground text-sm font-medium">{MODE_LABELS[chatMode]}</span>
             </div>
             <div className="flex-1 overflow-hidden">
-              <ChatView key={chatKey} mode={chatMode} />
+              <ChatView key={chatKey} mode={chatMode} brand={{ name: brand.name }} />
             </div>
           </div>
         )}
