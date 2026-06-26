@@ -494,8 +494,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
+    // Return first image + placeholder caption/hashtags for now
+    const firstAsset = assets[0]
+    const caption = `Check out our new ${brandName} campaign! 📸`
+    const hashtags = ['foodporn', 'foodstagram', 'instafood', 'foodphoto']
+
     return NextResponse.json({
-      assets,
+      image_url: firstAsset?.asset_url || null,
+      images: assets.map((a) => a.asset_url),
+      caption,
+      hashtags,
       campaign_strategy: strategy,
     })
   } catch (err) {
