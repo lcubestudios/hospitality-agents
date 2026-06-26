@@ -516,9 +516,11 @@ ${postTopic ? `Topic: ${postTopic}` : ''}
 ${brandContext}
 
 Product details: ${subjectDesc}
+${postTopic ? `Angle/Hook: ${postTopic}` : ''}
 
 Write a captivating Instagram caption (2-3 sentences max) that:
 - Reflects ${brandName}'s unique brand voice and personality
+${postTopic ? `- Emphasizes: ${postTopic}` : ''}
 - Highlights what makes this product special
 - Encourages engagement and creates desire
 - Feels authentic, not generic
