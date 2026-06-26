@@ -497,6 +497,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
     // Generate caption and hashtags with Claude
+    console.log('🔑 API Key present?', !!process.env.ANTHROPIC_API_KEY)
     const client = new Anthropic()
     let caption = ''
     let hashtags: string[] = []
@@ -511,11 +512,13 @@ ${postTopic ? `Angle: ${postTopic}` : ''}
 
 2-3 sentences max. Authentic, specific, makes people want it. No hashtags.`
 
+      console.log('📝 Caption prompt:', captionPrompt.substring(0, 100) + '...')
       const captionRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 200,
         messages: [{ role: 'user', content: captionPrompt }],
       })
+      console.log('✓ Caption response received')
 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
@@ -538,10 +541,9 @@ Return ONLY hashtag words (no #), comma-separated. Include brand name and locati
         .filter((tag) => tag.length > 0)
         .slice(0, 10)
     } catch (err) {
-      console.error(
-        '❌ CAPTION GENERATION FAILED:',
-        err instanceof Error ? err.message : JSON.stringify(err),
-      )
+      console.error('❌ CAPTION GENERATION FAILED')
+      console.error('Error details:', err instanceof Error ? err.message : JSON.stringify(err))
+      console.error('Full error:', err)
       caption = `Discover what makes ${brandName} special. Every detail crafted for an unforgettable experience.`
       hashtags = ['foodstagram', 'instafood', 'foodie', 'eeeeeats']
     }
