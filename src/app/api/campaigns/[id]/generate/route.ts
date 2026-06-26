@@ -181,14 +181,15 @@ Portrait/vertical orientation — 9:16, built for Instagram.
 ${humanPresenceBlock}
 
 [RENDER QUALITY]
-Photograph-quality render for ${brandName || 'this brand'}. Natural depth of field, true-to-life food colours, tactile textures. Feels shot by someone who understands this food and this brand.
+Professional campaign-ready photograph for ${brandName || 'this brand'}. Shot with precision: perfect focus, rich natural colours, tactile textures, depth. Feels shot by a professional food photographer who knows this brand's story. Every detail is intentional. This is published work, not a quick snap.
 
 [VISUAL STYLE — APPLY TO EVERY PIXEL]
-Soft natural light only — window light, overcast, or practitioner light that feels like it belongs in the space. Never flash, never ring light, never artificial.
-Real environments with material character — concrete, aged timber, marble, ceramic, linen, stone. Never a seamless studio backdrop.
-Warm-neutral editorial colour — natural, cohesive, not saturated, not moody for its own sake.
-Architectural composition — deliberate negative space, one focal point, clean. Never cluttered.
-Maximum two or three intentional elements in frame total.
+THIS MUST STOP THE SCROLL. Professional food photography that makes people want this food.
+Soft natural light only — window light, overcast, or practitioner light that feels like it belongs in the space. Never flash, never ring light, never artificial. Light should reveal texture and bring food to life.
+Real environments with material character — concrete, aged timber, marble, ceramic, linen, stone. Never seamless backdrops. The space should feel authentic and designed.
+Warm-neutral editorial colour grading — rich, natural, cohesive. Not desaturated, not moody, not filtered. Feels like professional food photography.
+Architectural composition — deliberate negative space, one unmistakable focal point, clean sightlines. Never busy, never cluttered.
+Maximum two or three intentional props total — every element earns its place.
 
 [ABSOLUTE HARD NO — ZERO TOLERANCE]
 - Any text, letters, words, numbers anywhere in the image — no bottle labels, no packaging, no chalkboards, no signs, no stamps, nothing with legible characters. If an object would have text on it in real life, face it away or exclude it entirely.
