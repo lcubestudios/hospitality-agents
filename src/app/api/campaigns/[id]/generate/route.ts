@@ -80,11 +80,29 @@ You are simultaneously:
 
 Study the uploaded photo carefully. Before anything else, describe the food with precision — not just what type of dish it is, but what makes this specific one visually distinct. The exact crust char pattern, the way the sauce is distributed, the melt state of the cheese, the particular cut or fold, the colour of the glaze, the specific garnish placement. These details are what separate this pizza from every other pizza, this cocktail from every other cocktail. They must survive into every shot.
 
-Then read the brand. Now develop 4 distinct creative directions. Each one is its own strong idea. They don't need to match — they just each need to be something you'd genuinely stop and look at on Instagram.
+Then read the brand. Now develop 4 distinct creative directions. Each one is its own strong idea. They don't need to match — they just each need to be something you'd stop and look at on Instagram.
 
-Think bold. Think specific. The best social content has a point of view — it makes you feel something or want something immediately.
+Think space first, food second. Design the world — the environment, the surface, the light, the atmosphere — then place the food into it. The food is the hero but it lives inside a world that was designed before it arrived. That's the difference between editorial and generic. Think architecturally: what is the space, what does light do in it, where exactly does the food sit, what else is in frame and where precisely.
 
-One critical check before finalising each shot: does the food styling make physical sense with the set? A cheese pull requires lift and angle — it can't happen flat on a table. Hands holding food need a plausible environment for that action. A cross-section needs something to cut on. If the styling and set aren't physically coherent, rethink one of them.
+For food styling: describe a still moment, not an action. Not "cheese pull" — "a single slice lifted at 45°, cheese beginning to stretch." Not "hands grabbing" — "one hand cradling the base from below, thumb resting along the crust." Specific enough to photograph.
+
+For the set: every prop gets an exact position. Not "condiments nearby" — "a small ceramic dish of chili oil at 8 o'clock, 12cm from the edge, falling soft." If you can't place it, cut it.
+
+VISUAL STYLE — this is non-negotiable creative direction for every shot:
+
+Light: Soft, natural or naturalistic only. Window light, overcast daylight, or warm practitioner light designed to feel like it belongs in the space. No harsh shadows, no visible flash, no ring light, no artificial warmth from panels. Light has direction but is never hard or dramatic.
+
+Environment: Real spaces with material character — concrete, aged timber, marble, ceramic tile, linen, brushed stone, plaster walls. Never a seamless studio backdrop. The room has texture. The surface has history. The food belongs there.
+
+Composition: Architectural. Deliberate negative space. One unmistakable focal point. Clean sightlines. Portrait/vertical always. Never cluttered, never busy, never more than two or three intentional elements total.
+
+Color: Warm-neutral editorial. Natural tones, not saturated. The entire frame has one cohesive color story — not random warmth, not high contrast, not moody for its own sake. The grade feels like good natural light, not a filter.
+
+Props: Maximum restraint. One, maybe two supporting elements, each with an exact position. If a prop doesn't add to the story, it's not there. No generic restaurant props, no filler.
+
+Human presence: Real and incidental. When hands appear they belong to someone in a genuine moment — not posed, not manicured, not stock. The food is being held or touched the way a person actually would.
+
+Zero text in frame: No bottle labels, no packaging text, no chalkboards, no menu boards, no signage, no stamps, no printed matter of any kind. If something in the set would have text on it in real life — face it away, crop it out, or don't include it.
 
 Brand: ${brandName || 'not specified'}
 Brand voice: ${brandVoice || 'not specified'}
@@ -136,7 +154,7 @@ The uploaded photo shows the exact food subject you are photographing. Study it.
 
 These are the specific visual characteristics of this food: ${subjectDescription}
 
-Every one of these details must appear in your image. Do not substitute, generalise, or approximate. Do not make this food look like a generic version of itself. This specific pizza (or whatever the subject is) — with its particular crust char, its exact cheese distribution, its specific colour and texture — is the subject. The composition, angle, and setting change. The food does not.
+Every one of these details must appear in your image. Do not substitute, generalise, or approximate. Do not make this food look like a generic version of itself. The subject described above is exactly what you are rendering — not a generic stand-in, not a different form of the same food type. The composition, angle, and setting change. The food does not.
 
 Do NOT reproduce the composition, framing, crop, or setting of the reference photo. Build an entirely new image per this brief. Only the food itself carries over.
 
@@ -165,19 +183,26 @@ ${humanPresenceBlock}
 [RENDER QUALITY]
 Photograph-quality render for ${brandName || 'this brand'}. Natural depth of field, true-to-life food colours, tactile textures. Feels shot by someone who understands this food and this brand.
 
-[HARD NO — NEVER INCLUDE ANY OF THESE]
-- Text, words, letters, numbers, logos, watermarks, or overlays of any kind — zero exceptions
+[VISUAL STYLE — APPLY TO EVERY PIXEL]
+Soft natural light only — window light, overcast, or practitioner light that feels like it belongs in the space. Never flash, never ring light, never artificial.
+Real environments with material character — concrete, aged timber, marble, ceramic, linen, stone. Never a seamless studio backdrop.
+Warm-neutral editorial colour — natural, cohesive, not saturated, not moody for its own sake.
+Architectural composition — deliberate negative space, one focal point, clean. Never cluttered.
+Maximum two or three intentional elements in frame total.
+
+[ABSOLUTE HARD NO — ZERO TOLERANCE]
+- Any text, letters, words, numbers anywhere in the image — no bottle labels, no packaging, no chalkboards, no signs, no stamps, nothing with legible characters. If an object would have text on it in real life, face it away or exclude it entirely.
+- Watermarks, copyright marks, or stock photo artifacts of any kind
 - Crumpled, folded, or used napkins or tissues
-- Random clutter or accidental-looking props not specified in the set
-- Busy or undesigned backgrounds — every element in frame is intentional
-- Generic restaurant decor (chalkboard menus, generic signage, stock-looking table settings)
-- Fake-looking or over-manicured hands — if hands are present they look real and lived-in
-- Artificial perfection — no stock photo feel, no CGI sheen
-- Watermarks, copyright marks, or any artifact suggesting a third-party image source
-- Warped, distorted, or anatomically wrong food geometry
-- Artificial glow, neon effects, lens flare, or HDR processing
-- Surreal, fantasy, or non-photorealistic elements
-- Multiple competing focal points — one hero, everything else supports it`.trim()
+- Props not specified in the set brief — do not invent or add anything
+- Busy or undesigned backgrounds
+- Generic restaurant props (chalkboard menus, generic signage, stock table settings)
+- Over-manicured or fake-looking hands — real and lived-in only
+- Stock photo aesthetic — artificial perfection, CGI sheen
+- Warped or distorted food geometry
+- Artificial glow, neon, lens flare, or HDR
+- Surreal or non-photorealistic elements
+- Multiple competing focal points`.trim()
 }
 
 // ─── Gemini API call ──────────────────────────────────────────────────────────
@@ -329,7 +354,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const client = new Anthropic()
         const strategyRes = await client.messages.create({
           model: 'claude-sonnet-4-6',
-          max_tokens: 2000,
+          max_tokens: 4000,
           messages: [
             {
               role: 'user',
