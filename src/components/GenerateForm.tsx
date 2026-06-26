@@ -275,9 +275,21 @@ export function GenerateForm({ brand }: GenerateFormProps) {
                 {result.caption}
               </p>
               {result.hashtags.length > 0 && (
-                <p className="mt-3 text-sm text-gray-600">
-                  {result.hashtags.map((tag) => `#${tag}`).join(' ')}
-                </p>
+                <div className="mt-4 space-y-2">
+                  <p className="rounded-lg bg-gray-50 p-3 font-mono text-sm break-words text-gray-600">
+                    {result.hashtags.map((tag) => `#${tag}`).join(' ')}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      const hashtagText = result.hashtags.map((tag) => `#${tag}`).join(' ')
+                      navigator.clipboard.writeText(hashtagText)
+                    }}
+                  >
+                    Copy Hashtags
+                  </Button>
+                </div>
               )}
             </div>
           </div>
