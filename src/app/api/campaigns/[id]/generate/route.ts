@@ -508,7 +508,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 Write a short, engaging caption (1-2 sentences) that would appeal to food lovers. Make it feel authentic and brand-voice appropriate. Don't use hashtags in the caption itself.`
 
       const captionRes = await client.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-opus-4-1',
         max_tokens: 150,
         messages: [{ role: 'user', content: captionPrompt }],
       })
@@ -520,7 +520,7 @@ Write a short, engaging caption (1-2 sentences) that would appeal to food lovers
 Return only the hashtag words (without # symbol), separated by commas. Examples: foodporn, instafood, foodstagram. Be specific to the product type.`
 
       const hashtagRes = await client.messages.create({
-        model: 'claude-3-5-sonnet-20241022',
+        model: 'claude-opus-4-1',
         max_tokens: 100,
         messages: [{ role: 'user', content: hashtagPrompt }],
       })
