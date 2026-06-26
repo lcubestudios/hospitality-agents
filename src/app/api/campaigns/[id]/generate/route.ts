@@ -66,71 +66,77 @@ function buildStrategyPrompt({
   angleOrStory: string
   audience: string
 }): string {
-  return `You are the entire creative production team for an F&B brand's Instagram content. You've been handed a photo of their food or drink and a brand brief. Your job is to conceive 4 distinct shot directions.
+  return `You are the creative direction team for a trendy F&B brand's Instagram campaign. Your job: 4 distinct, visually STRIKING shot directions that stop the scroll. Think CreativebyKera — bold, designed, intentional.
 
-You are simultaneously:
-- The brand strategist who understands what this brand needs to communicate
-- The creative director who develops the concept for each shot
-- The art director who defines the color world and visual tone
-- The food stylist who decides exactly how the food is presented and treated
-- The set designer who builds the environment — every element in frame is intentional
-- The lighting director who designs the light setup
-- The photographer who frames and shoots it
-- The social strategist who knows what stops a scroll
+Study the food. Describe it with precision: exact textures, colors, details. This is the hero that carries through all 4 shots.
 
-Study the uploaded photo carefully. Before anything else, describe the food with precision — not just what type of dish it is, but what makes this specific one visually distinct. The exact crust char pattern, the way the sauce is distributed, the melt state of the cheese, the particular cut or fold, the colour of the glaze, the specific garnish placement. These details are what separate this pizza from every other pizza, this cocktail from every other cocktail. They must survive into every shot.
+NOW — think CREATIVE DIRECTION, not just "good food photos."
 
-Then read the brand. Now develop 4 distinct creative directions. Each one is its own strong idea. They don't need to match — they just each need to be something you'd stop and look at on Instagram.
+Each shot is a DESIGNED MOMENT. Think:
+- Cheese pull, smoke, steam, action
+- Ingredients floating, arranged, scattered artfully
+- Pastel or boldly designed backgrounds
+- Dynamic angles, crop into details, close-ups
+- Hands interacting naturally but dramatically
+- Props with PURPOSE — they design the frame
+- Color as design tool, not accident
+- Composition that's BOLD — not safe
 
-Think space first, food second. Design the world — the environment, the surface, the light, the atmosphere — then place the food into it. The food is the hero but it lives inside a world that was designed before it arrived. That's the difference between editorial and generic. Think architecturally: what is the space, what does light do in it, where exactly does the food sit, what else is in frame and where precisely.
+4 distinct ideas. Each should be visually distinct. Each should feel like a designer/creative director made it, not just "put food on a plate."
 
-For food styling: describe a still moment, not an action. Not "cheese pull" — "a single slice lifted at 45°, cheese beginning to stretch." Not "hands grabbing" — "one hand cradling the base from below, thumb resting along the crust." Specific enough to photograph.
+VISUAL DIRECTION:
 
-For the set: every prop gets an exact position. Not "condiments nearby" — "a small ceramic dish of chili oil at 8 o'clock, 12cm from the edge, falling soft." If you can't place it, cut it.
+Light: Modern food photography lighting. Can be natural, can be designed. The light should ENHANCE drama and showcase the food.
 
-VISUAL STYLE — this is non-negotiable creative direction for every shot:
+Environment: Designed backgrounds — pastel, color-blocked, textured, or real spaces with strong character. Think trendy food content. Not generic white plate on white table.
 
-Light: Soft, natural or naturalistic only. Window light, overcast daylight, or warm practitioner light designed to feel like it belongs in the space. No harsh shadows, no visible flash, no ring light, no artificial warmth from panels. Light has direction but is never hard or dramatic.
+Composition: Dynamic and intentional. Can be tight crops, extreme angles, overhead, close detail shots. Architectural when it works; bold and unconventional when it pops.
 
-Environment: Real spaces with material character — concrete, aged timber, marble, ceramic tile, linen, brushed stone, plaster walls. Never a seamless studio backdrop. The room has texture. The surface has history. The food belongs there.
+Color: Rich, designed, intentional. Not muted. The palette should support the brand and the food. Saturation is OK if it's purposeful.
 
-Composition: Architectural. Deliberate negative space. One unmistakable focal point. Clean sightlines. Portrait/vertical always. Never cluttered, never busy, never more than two or three intentional elements total.
+Props: Selective. When something is in frame, it's because it tells the story or enhances the design. Ingredients, utensils, garnishes, styled elements.
 
-Color: Warm-neutral editorial. Natural tones, not saturated. The entire frame has one cohesive color story — not random warmth, not high contrast, not moody for its own sake. The grade feels like good natural light, not a filter.
+Food Styling: Creative moments. Not just "here is the food." Think:
+- A cheese pull mid-stretch
+- Sauce dripping, pooling, running
+- A bite taken, showing texture inside
+- Ingredients scattered, arranged
+- Steam or smoke visible
+- A hand holding, dipping, breaking, tasting
+- Close detail that shows quality
 
-Props: Maximum restraint. One, maybe two supporting elements, each with an exact position. If a prop doesn't add to the story, it's not there. No generic restaurant props, no filler.
+Human presence: Real and intentional. Hands when they add drama or story. Use them to show scale, action, interaction.
 
-Human presence: Real and incidental. When hands appear they belong to someone in a genuine moment — not posed, not manicured, not stock. The food is being held or touched the way a person actually would.
-
-Zero text in frame: No bottle labels, no packaging text, no chalkboards, no menu boards, no signage, no stamps, no printed matter of any kind. If something in the set would have text on it in real life — face it away, crop it out, or don't include it.
+Zero text: No labels, signs, packaging text. If it's there in real life, face it away or exclude it.
 
 Brand: ${brandName || 'not specified'}
 Brand voice: ${brandVoice || 'not specified'}
 ${brandProfile ? brandProfile + '\n' : ''}Campaign topic: ${postTopic || 'not specified'}
 ${angleOrStory ? `Angle or story: ${angleOrStory}\n` : ''}${audience ? `Target audience: ${audience}\n` : ''}
-Every element you put in the set must earn its place. Nothing accidental, nothing generic. No crumpled napkins, no random clutter, no lazy props. If it's in frame, it's a decision.
+
+These are for a trendy, designed food brand. Go bold. Go creative. Each shot should feel like a creative director designed it.
 
 Return ONLY valid JSON:
 
 {
-  "subject_description": "highly specific visual description of this exact food — not just what type of dish it is, but what makes this particular one distinct. Crust char pattern, sauce distribution, melt state, specific colours, garnish placement, cut or fold, glaze finish, any unique visual detail. The kind of description that would let someone reproduce this exact dish.",
+  "subject_description": "exact visual description of the food — what makes THIS specific item distinct. Crust char, sauce state, cheese melt, color, garnish, cut, texture. Precise enough to reproduce.",
   "shots": [
     {
       "shot_label": "2–4 word name",
-      "concept": "the creative idea — what this shot makes you feel or want, and why it works for this brand",
-      "food_styling": "exactly how the food is presented — state, treatment, styling action (whole, pulled apart, cross-sectioned, sauce running, held, etc.)",
-      "set": "every intentional element in frame — surface, background, props. If it's not here, it's not in the shot.",
-      "color_world": "the palette and tone — be specific (e.g. warm terracotta and cream, deep jewel tones, soft blush and white, high-contrast monochrome)",
-      "lighting": "the full setup — direction, temperature, quality, what it does to the subject and the mood",
-      "camera": "angle, distance, depth of field — always portrait/vertical orientation",
+      "concept": "the CREATIVE IDEA. What makes this shot stop the scroll? What's the design moment?",
+      "food_styling": "SPECIFIC styling action. Cheese pull at 45°. Sauce running. Bite taken. Steam visible. Hand interacting. Be VISUAL and DRAMATIC.",
+      "set": "the DESIGNED environment. Pastel background. Textured surface. Color-blocked. Arranged props with exact positions. Make it intentional.",
+      "color_world": "design-forward palette. Rich, saturated if it works. Intentional color story.",
+      "lighting": "modern food photography lighting. Can be natural, can be designed studio. What reveals and enhances the food?",
+      "camera": "angle and crop that works for THIS shot. Can be tight detail, extreme angle, overhead. Whatever serves the design.",
       "human_presence": "none | hands | implied"
     }
   ]
 }
 
-- shots: exactly 4.
-- subject_description: factual only. What you see.
-- human_presence: exactly one of "none", "hands", "implied".
+- shots: exactly 4, each DISTINCT and VISUALLY STRIKING
+- subject_description: factual, precise
+- human_presence: exactly one of "none", "hands", "implied"
 
 Output ONLY valid JSON. No markdown. No explanation.`.trim()
 }
@@ -517,7 +523,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       // Generate hashtags - optimized for reach
       const hashtagPrompt = `Generate 8 hashtags for ${brandName}.
 MUST include: ${brandName.toLowerCase().replace(/\s+/g, '')}, ${brand?.location?.toLowerCase().replace(/\s+/g, '') || 'local'}
-Then add: 1-2 food type tags (${subjectDesc.split(' ')[0]?.toLowerCase() || 'food'}-related), then reach tags (foodstagram, instafood, foodporn, foodie, eatlocal, localfood).
+Food type: ${brand?.food_drink_type || 'food'}
+Then add: 1-2 ${brand?.food_drink_type || 'food'}-specific tags, then reach tags (foodstagram, instafood, foodporn, foodie, eatlocal, localfood).
 Return only words (no #), comma-separated.`
 
       const hashtagRes = await client.messages.create({
