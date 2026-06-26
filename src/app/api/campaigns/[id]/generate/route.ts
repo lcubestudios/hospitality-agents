@@ -497,55 +497,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
     // Generate caption and hashtags with Claude
-    console.log('🔑 API Key present?', !!process.env.ANTHROPIC_API_KEY)
     const client = new Anthropic()
     let caption = ''
     let hashtags: string[] = []
 
     try {
       const subjectDesc = strategy?.subject_description || 'our latest product'
-      const brandVoiceToUse = brand_voice_override || brand?.brand_voice || 'not specified'
+      const captionPrompt = `Generate a compelling Instagram caption for a ${brandName} food product. The product is: ${subjectDesc}.
 
-      const captionPrompt = `Write a compelling Instagram caption for ${brandName} (${brandVoiceToUse} voice).
-Product: ${subjectDesc}
-${postTopic ? `Angle: ${postTopic}` : ''}
+Write a short, engaging caption (1-2 sentences) that would appeal to food lovers. Make it feel authentic and brand-voice appropriate. Don't use hashtags in the caption itself.`
 
-2-3 sentences max. Authentic, specific, makes people want it. No hashtags.`
-
-      console.log('📝 Caption prompt:', captionPrompt.substring(0, 100) + '...')
       const captionRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 200,
+        max_tokens: 150,
         messages: [{ role: 'user', content: captionPrompt }],
       })
-      console.log('✓ Caption response received')
 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
       // Generate hashtags
-      const hashtagPrompt = `Generate 8-10 hashtags for: ${subjectDesc}. Brand: ${brandName} in ${brand?.location || 'the area'}.
-${postTopic ? `Context: ${postTopic}` : ''}
-
-Return ONLY hashtag words (no #), comma-separated. Include brand name and location.`
+      const hashtagPrompt = `Generate 5 relevant Instagram hashtags for a food product: ${subjectDesc}.
+Return only the hashtag words (without # symbol), separated by commas. Examples: foodporn, instafood, foodstagram. Be specific to the product type.`
 
       const hashtagRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 200,
+        max_tokens: 100,
         messages: [{ role: 'user', content: hashtagPrompt }],
       })
 
       const hashtagText = (hashtagRes.content[0] as { type: 'text'; text: string }).text.trim()
-      hashtags = hashtagText
-        .split(',')
-        .map((tag) => tag.trim().replace(/^#+/, '').toLowerCase())
-        .filter((tag) => tag.length > 0)
-        .slice(0, 10)
+      hashtags = hashtagText.split(',').map((tag) => tag.trim().replace(/^#+/, ''))
     } catch (err) {
-      console.error('❌ CAPTION GENERATION FAILED')
-      console.error('Error details:', err instanceof Error ? err.message : JSON.stringify(err))
-      console.error('Full error:', err)
-      caption = `Discover what makes ${brandName} special. Every detail crafted for an unforgettable experience.`
-      hashtags = ['foodstagram', 'instafood', 'foodie', 'eeeeeats']
+      console.warn('Caption generation failed, using fallback:', err)
+      caption = `Experience the taste of ${brandName}. 🍽️`
+      hashtags = ['foodstagram', 'instafood', 'foodphoto']
     }
 
     return NextResponse.json({
