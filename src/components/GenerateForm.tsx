@@ -35,10 +35,13 @@ export function GenerateForm({ brand }: GenerateFormProps) {
   const [file, setFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string | null>(null)
   const [postTopic, setPostTopic] = useState('')
+  const [brandVoice, setBrandVoice] = useState('Casual')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<GenerationResult | null>(null)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+
+  const BRAND_VOICE_OPTIONS = ['Professional', 'Casual', 'Friendly', 'Luxury', 'Trendy']
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -110,6 +113,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
         body: JSON.stringify({
           image_url: imageUrl,
           post_topic: postTopic || null,
+          brand_voice_override: brandVoice,
         }),
       })
 
@@ -192,6 +196,24 @@ export function GenerateForm({ brand }: GenerateFormProps) {
             />
           </div>
 
+          {/* Brand Voice */}
+          <div>
+            <Label htmlFor="brand-voice">Brand Voice</Label>
+            <select
+              id="brand-voice"
+              value={brandVoice}
+              onChange={(e) => setBrandVoice(e.target.value)}
+              disabled={loading}
+              className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring mt-1 w-full rounded-md border px-3 py-2 text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {BRAND_VOICE_OPTIONS.map((voice) => (
+                <option key={voice} value={voice}>
+                  {voice}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {/* Error */}
           {error && (
             <div className="flex items-center gap-2 rounded-lg bg-red-50 p-3 text-red-700">
@@ -213,58 +235,51 @@ export function GenerateForm({ brand }: GenerateFormProps) {
         <Card className="p-6">
           <h3 className="mb-6 text-lg font-semibold text-gray-900">Campaign Album</h3>
 
-          {/* Image Grid */}
-          <div className="mb-6 grid grid-cols-2 gap-4">
+          {/* Image Grid with Download */}
+          <div className="mb-6 grid grid-cols-2 gap-6">
             {result.images.map((imageUrl, idx) => (
-              <div
-                key={idx}
-                className="group relative overflow-hidden rounded-lg border border-gray-200"
-              >
-                <img
-                  src={imageUrl}
-                  alt={`Campaign ${idx + 1}`}
-                  className="aspect-square w-full object-cover"
-                />
-                <button
-                  onClick={() => setLightboxImage(imageUrl)}
-                  className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/40"
-                >
-                  <ZoomIn
-                    className="text-white opacity-0 transition-opacity group-hover:opacity-100"
-                    size={28}
+              <div key={idx} className="flex flex-col">
+                <div className="group relative mb-2 overflow-hidden rounded-lg border border-gray-200">
+                  <img
+                    src={imageUrl}
+                    alt={`Campaign ${idx + 1}`}
+                    className="aspect-square w-full object-cover"
                   />
-                </button>
+                  <button
+                    onClick={() => setLightboxImage(imageUrl)}
+                    className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/40"
+                  >
+                    <ZoomIn
+                      className="text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      size={28}
+                    />
+                  </button>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full"
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(imageUrl)
+                      const blob = await res.blob()
+                      const url = window.URL.createObjectURL(blob)
+                      const a = document.createElement('a')
+                      a.href = url
+                      a.download = `campaign-${result.campaignId}-${idx + 1}.jpg`
+                      document.body.appendChild(a)
+                      a.click()
+                      window.URL.revokeObjectURL(url)
+                      document.body.removeChild(a)
+                    } catch (err) {
+                      console.error('Download failed:', err)
+                    }
+                  }}
+                >
+                  <Download size={14} className="mr-2" />
+                  Download
+                </Button>
               </div>
-            ))}
-          </div>
-
-          {/* Download All */}
-          <div className="mb-6 flex flex-wrap gap-2">
-            {result.images.map((imageUrl, idx) => (
-              <Button
-                key={idx}
-                variant="outline"
-                size="sm"
-                onClick={async () => {
-                  try {
-                    const res = await fetch(imageUrl)
-                    const blob = await res.blob()
-                    const url = window.URL.createObjectURL(blob)
-                    const a = document.createElement('a')
-                    a.href = url
-                    a.download = `campaign-${result.campaignId}-${idx + 1}.jpg`
-                    document.body.appendChild(a)
-                    a.click()
-                    window.URL.revokeObjectURL(url)
-                    document.body.removeChild(a)
-                  } catch (err) {
-                    console.error('Download failed:', err)
-                  }
-                }}
-              >
-                <Download size={14} className="mr-2" />
-                Download {idx + 1}
-              </Button>
             ))}
           </div>
 

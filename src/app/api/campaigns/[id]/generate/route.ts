@@ -278,6 +278,7 @@ interface GenerationRequest {
   start_date?: string
   end_date?: string
   posting_frequency?: string
+  brand_voice_override?: string
 }
 
 // ─── Route handler ────────────────────────────────────────────────────────────
@@ -291,6 +292,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       post_topic: directivePostTopic,
       angle_or_story: directiveAngleOrStory,
       audience: directiveAudience,
+      brand_voice_override,
     } = body
 
     if (!GOOGLE_API_KEY) {
@@ -511,17 +513,19 @@ Atmosphere: ${brand?.atmosphere?.join(', ') || 'not specified'}
 ${postTopic ? `Topic: ${postTopic}` : ''}
 `
 
+      const brandVoiceToUse = brand_voice_override || brand?.brand_voice || 'not specified'
+
       const captionPrompt = `You are creating Instagram content for "${brandName}", a food & beverage establishment.
 
 ${brandContext}
+Brand voice to adopt: ${brandVoiceToUse}
 
 Product details: ${subjectDesc}
-${postTopic ? `Angle/Hook: ${postTopic}` : ''}
+${postTopic ? `Angle/Hook: ${postTopic}` : 'If no specific angle is given, infer the product angle/story from the uploaded photo.'}
 
 Write a captivating Instagram caption (2-3 sentences max) that:
-- Reflects ${brandName}'s unique brand voice and personality
-${postTopic ? `- Emphasizes: ${postTopic}` : ''}
-- Highlights what makes this product special
+- Adopts the "${brandVoiceToUse}" brand voice and tone
+${postTopic ? `- Emphasizes: ${postTopic}` : '- Showcases what makes this product special based on the photo'}
 - Encourages engagement and creates desire
 - Feels authentic, not generic
 - No hashtags in the caption itself
@@ -531,7 +535,26 @@ Make it memorable and on-brand.`
       const captionRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 200,
-        messages: [{ role: 'user', content: captionPrompt }],
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: captionPrompt },
+              {
+                type: 'image',
+                source: {
+                  type: 'base64',
+                  media_type: uploadedMimeType as
+                    | 'image/jpeg'
+                    | 'image/png'
+                    | 'image/gif'
+                    | 'image/webp',
+                  data: uploadedBase64,
+                },
+              },
+            ] as Anthropic.ContentBlockParam[],
+          },
+        ],
       })
 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
