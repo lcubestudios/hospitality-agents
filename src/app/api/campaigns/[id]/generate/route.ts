@@ -537,15 +537,16 @@ Make it memorable and on-brand.`
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
       // Generate hashtags with brand context
-      const hashtagPrompt = `Generate exactly 10 Instagram hashtags for "${brandName}" (${brand?.business_type || 'food venue'}).
+      const hashtagPrompt = `Generate up to 10 relevant Instagram hashtags for "${brandName}" (${brand?.business_type || 'food venue'}).
 Product: ${subjectDesc}
 ${postTopic ? `Topic/angle: ${postTopic}` : ''}
 
 Return ONLY the hashtag words (no # symbol), separated by commas on a single line.
 Be specific to: the brand, food/drink type, atmosphere, and vibe.
 Mix popular tags (foodstagram, instafood) with niche/branded tags specific to "${brandName}".
+Quality over quantity — only include tags that are truly relevant.
 
-Format: word1, word2, word3, word4, word5, word6, word7, word8, word9, word10`
+Format: word1, word2, word3, ...`
 
       const hashtagRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
