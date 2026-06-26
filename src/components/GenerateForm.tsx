@@ -284,28 +284,34 @@ export function GenerateForm({ brand }: GenerateFormProps) {
           </div>
 
           {/* Caption + Hashtags */}
-          <div className="space-y-3 border-t pt-6">
-            <div>
-              <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
-                {result.caption}
-              </p>
-              {result.hashtags.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <p className="rounded-lg bg-gray-50 p-3 font-mono text-sm break-words text-gray-600">
+          <div className="border-t pt-6">
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-gray-500 uppercase">Instagram Caption</p>
+              <div className="space-y-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
+                <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
+                  {result.caption}
+                </p>
+                {result.hashtags.length > 0 && (
+                  <p className="text-sm text-gray-600">
                     {result.hashtags.map((tag) => `#${tag}`).join(' ')}
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      const hashtagText = result.hashtags.map((tag) => `#${tag}`).join(' ')
-                      navigator.clipboard.writeText(hashtagText)
-                    }}
-                  >
-                    Copy Hashtags
-                  </Button>
-                </div>
-              )}
+                )}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  const fullCaption =
+                    result.caption +
+                    (result.hashtags.length > 0
+                      ? '\n\n' + result.hashtags.map((tag) => `#${tag}`).join(' ')
+                      : '')
+                  navigator.clipboard.writeText(fullCaption)
+                }}
+              >
+                Copy Caption
+              </Button>
             </div>
           </div>
         </Card>
