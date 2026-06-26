@@ -501,34 +501,62 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     try {
       const subjectDesc = strategy?.subject_description || 'our latest product'
-      const captionPrompt = `Generate a compelling Instagram caption for a ${brandName} food product. The product is: ${subjectDesc}.
+      const brandContext = `
+Brand: ${brandName}
+Voice: ${brand?.brand_voice || 'not specified'}
+Description: ${brand?.description || 'not specified'}
+Type: ${brand?.business_type || 'restaurant'}
+Focus: ${brand?.food_drink_type || 'general food'}
+Atmosphere: ${brand?.atmosphere?.join(', ') || 'not specified'}
+${postTopic ? `Topic: ${postTopic}` : ''}
+`
 
-Write a short, engaging caption (1-2 sentences) that would appeal to food lovers. Make it feel authentic and brand-voice appropriate. Don't use hashtags in the caption itself.`
+      const captionPrompt = `You are creating Instagram content for "${brandName}", a food & beverage establishment.
+
+${brandContext}
+
+Product details: ${subjectDesc}
+
+Write a captivating Instagram caption (2-3 sentences max) that:
+- Reflects ${brandName}'s unique brand voice and personality
+- Highlights what makes this product special
+- Encourages engagement and creates desire
+- Feels authentic, not generic
+- No hashtags in the caption itself
+
+Make it memorable and on-brand.`
 
       const captionRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 150,
+        max_tokens: 200,
         messages: [{ role: 'user', content: captionPrompt }],
       })
 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
-      // Generate hashtags
-      const hashtagPrompt = `Generate 5 relevant Instagram hashtags for a food product: ${subjectDesc}.
-Return only the hashtag words (without # symbol), separated by commas. Examples: foodporn, instafood, foodstagram. Be specific to the product type.`
+      // Generate hashtags with brand context
+      const hashtagPrompt = `Generate 8 Instagram hashtags for "${brandName}" (${brand?.business_type || 'food venue'}).
+Product: ${subjectDesc}
+${postTopic ? `Topic/angle: ${postTopic}` : ''}
+
+Return ONLY hashtag words (no # symbol), comma-separated. Be specific to the brand, location, food type, and vibe.
+Mix popular and niche tags. Examples: foodstagram, ${brand?.food_drink_type?.toLowerCase().replace(/\s+/g, '')}life, ${brandName?.toLowerCase().replace(/\s+/g, '')}`
 
       const hashtagRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 100,
+        max_tokens: 150,
         messages: [{ role: 'user', content: hashtagPrompt }],
       })
 
       const hashtagText = (hashtagRes.content[0] as { type: 'text'; text: string }).text.trim()
-      hashtags = hashtagText.split(',').map((tag) => tag.trim().replace(/^#+/, ''))
+      hashtags = hashtagText
+        .split(',')
+        .map((tag) => tag.trim().replace(/^#+/, '').toLowerCase())
+        .filter((tag) => tag.length > 0)
     } catch (err) {
       console.warn('Caption generation failed, using fallback:', err)
-      caption = `Experience the taste of ${brandName}. 🍽️`
-      hashtags = ['foodstagram', 'instafood', 'foodphoto']
+      caption = `Discover what makes ${brandName} special. Every detail crafted for an unforgettable experience.`
+      hashtags = ['foodstagram', 'instafood', 'foodie', 'eeeeeats']
     }
 
     return NextResponse.json({

@@ -245,11 +245,21 @@ export function GenerateForm({ brand }: GenerateFormProps) {
                 key={idx}
                 variant="outline"
                 size="sm"
-                onClick={() => {
-                  const a = document.createElement('a')
-                  a.href = imageUrl
-                  a.download = `campaign-${result.campaignId}-${idx + 1}.jpg`
-                  a.click()
+                onClick={async () => {
+                  try {
+                    const res = await fetch(imageUrl)
+                    const blob = await res.blob()
+                    const url = window.URL.createObjectURL(blob)
+                    const a = document.createElement('a')
+                    a.href = url
+                    a.download = `campaign-${result.campaignId}-${idx + 1}.jpg`
+                    document.body.appendChild(a)
+                    a.click()
+                    window.URL.revokeObjectURL(url)
+                    document.body.removeChild(a)
+                  } catch (err) {
+                    console.error('Download failed:', err)
+                  }
                 }}
               >
                 <Download size={14} className="mr-2" />
