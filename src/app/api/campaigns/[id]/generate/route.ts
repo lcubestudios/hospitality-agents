@@ -537,16 +537,19 @@ Make it memorable and on-brand.`
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
       // Generate hashtags with brand context
-      const hashtagPrompt = `Generate 8 Instagram hashtags for "${brandName}" (${brand?.business_type || 'food venue'}).
+      const hashtagPrompt = `Generate exactly 10 Instagram hashtags for "${brandName}" (${brand?.business_type || 'food venue'}).
 Product: ${subjectDesc}
 ${postTopic ? `Topic/angle: ${postTopic}` : ''}
 
-Return ONLY hashtag words (no # symbol), comma-separated. Be specific to the brand, location, food type, and vibe.
-Mix popular and niche tags. Examples: foodstagram, ${brand?.food_drink_type?.toLowerCase().replace(/\s+/g, '')}life, ${brandName?.toLowerCase().replace(/\s+/g, '')}`
+Return ONLY the hashtag words (no # symbol), separated by commas on a single line.
+Be specific to: the brand, food/drink type, atmosphere, and vibe.
+Mix popular tags (foodstagram, instafood) with niche/branded tags specific to "${brandName}".
+
+Format: word1, word2, word3, word4, word5, word6, word7, word8, word9, word10`
 
       const hashtagRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
-        max_tokens: 150,
+        max_tokens: 200,
         messages: [{ role: 'user', content: hashtagPrompt }],
       })
 
@@ -555,6 +558,7 @@ Mix popular and niche tags. Examples: foodstagram, ${brand?.food_drink_type?.toL
         .split(',')
         .map((tag) => tag.trim().replace(/^#+/, '').toLowerCase())
         .filter((tag) => tag.length > 0)
+        .slice(0, 10)
     } catch (err) {
       console.warn('Caption generation failed, using fallback:', err)
       caption = `Discover what makes ${brandName} special. Every detail crafted for an unforgettable experience.`
