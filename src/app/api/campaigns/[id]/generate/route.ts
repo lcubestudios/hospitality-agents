@@ -314,7 +314,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       ? await supabase
           .from('brands')
           .select(
-            'name, description, brand_voice, business_type, food_drink_type, atmosphere, personality',
+            'name, location, description, brand_voice, business_type, food_drink_type, atmosphere, personality',
           )
           .eq('id', campaign.brand_id)
           .single()
@@ -539,26 +539,7 @@ Be concrete. Not "delicious food" but "our wood-fired pizza" or "the house-made 
       const captionRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
         max_tokens: 200,
-        messages: [
-          {
-            role: 'user',
-            content: [
-              { type: 'text', text: captionPrompt },
-              {
-                type: 'image',
-                source: {
-                  type: 'base64',
-                  media_type: uploadedMimeType as
-                    | 'image/jpeg'
-                    | 'image/png'
-                    | 'image/gif'
-                    | 'image/webp',
-                  data: uploadedBase64,
-                },
-              },
-            ] as Anthropic.ContentBlockParam[],
-          },
-        ],
+        messages: [{ role: 'user', content: captionPrompt }],
       })
 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
