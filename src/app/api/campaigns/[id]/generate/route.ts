@@ -99,11 +99,11 @@ Props: Selective. When something is in frame, it's because it tells the story or
 Food Styling: Creative moments. Not just "here is the food." Think:
 - A cheese pull mid-stretch
 - Sauce dripping, pooling, running
-- A bite taken, showing texture inside
 - Ingredients scattered, arranged
 - Steam or smoke visible
-- A hand holding, dipping, breaking, tasting
+- A hand holding, dipping, interacting
 - Close detail that shows quality
+THE FOOD MUST BE WHOLE AND INTACT. Not bitten, not partial. Quantity matches input: one slice = one slice, one pizza = one pizza.
 
 Human presence: Real and intentional. Hands when they add drama or story. Use them to show scale, action, interaction.
 
@@ -119,7 +119,7 @@ These are for a trendy, designed food brand. Go bold. Go creative. Each shot sho
 Return ONLY valid JSON:
 
 {
-  "subject_description": "exact visual description of the food — what makes THIS specific item distinct. Crust char, sauce state, cheese melt, color, garnish, cut, texture. Precise enough to reproduce.",
+  "subject_description": "exact visual description of the food — what makes THIS specific item distinct. Crust char, sauce state, cheese melt, color, garnish, cut, texture. Precise enough to reproduce. CRITICAL: Describe the exact quantity shown in the input image. One slice = one slice. One pizza = one pizza. Do not add or remove items.",
   "shots": [
     {
       "shot_label": "2–4 word name",
