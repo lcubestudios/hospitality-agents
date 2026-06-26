@@ -503,21 +503,21 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     try {
       const subjectDesc = strategy?.subject_description || 'our latest product'
-      const captionPrompt = `Generate a compelling Instagram caption for a ${brandName} food product. The product is: ${subjectDesc}.
-
-Write a short, engaging caption (1-2 sentences) that would appeal to food lovers. Make it feel authentic and brand-voice appropriate. Don't use hashtags in the caption itself.`
+      const captionPrompt = `Write a 1-2 sentence Instagram caption for ${brandName}. Product: ${subjectDesc}. Keep it real and simple—no flowery language. Just make people want it.`
 
       const captionRes = await client.messages.create({
         model: 'claude-opus-4-1',
-        max_tokens: 150,
+        max_tokens: 100,
         messages: [{ role: 'user', content: captionPrompt }],
       })
 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
-      // Generate hashtags
-      const hashtagPrompt = `Generate 5 relevant Instagram hashtags for a food product: ${subjectDesc}.
-Return only the hashtag words (without # symbol), separated by commas. Examples: foodporn, instafood, foodstagram. Be specific to the product type.`
+      // Generate hashtags - optimized for reach
+      const hashtagPrompt = `Generate 8 hashtags for ${brandName}.
+MUST include: ${brandName.toLowerCase().replace(/\s+/g, '')}, ${brand?.location?.toLowerCase().replace(/\s+/g, '') || 'local'}
+Then add: 1-2 food type tags (${subjectDesc.split(' ')[0]?.toLowerCase() || 'food'}-related), then reach tags (foodstagram, instafood, foodporn, foodie, eatlocal, localfood).
+Return only words (no #), comma-separated.`
 
       const hashtagRes = await client.messages.create({
         model: 'claude-opus-4-1',
