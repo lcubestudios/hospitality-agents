@@ -494,13 +494,45 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
-    // Return first image + placeholder caption/hashtags for now
-    const firstAsset = assets[0]
-    const caption = `Check out our new ${brandName} campaign! 📸`
-    const hashtags = ['foodporn', 'foodstagram', 'instafood', 'foodphoto']
+    // Generate caption and hashtags with Claude
+    const client = new Anthropic()
+    let caption = ''
+    let hashtags: string[] = []
+
+    try {
+      const subjectDesc = strategy?.subject_description || 'our latest product'
+      const captionPrompt = `Generate a compelling Instagram caption for a ${brandName} food product. The product is: ${subjectDesc}.
+
+Write a short, engaging caption (1-2 sentences) that would appeal to food lovers. Make it feel authentic and brand-voice appropriate. Don't use hashtags in the caption itself.`
+
+      const captionRes = await client.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 150,
+        messages: [{ role: 'user', content: captionPrompt }],
+      })
+
+      caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
+
+      // Generate hashtags
+      const hashtagPrompt = `Generate 5 relevant Instagram hashtags for a food product: ${subjectDesc}.
+Return only the hashtag words (without # symbol), separated by commas. Examples: foodporn, instafood, foodstagram. Be specific to the product type.`
+
+      const hashtagRes = await client.messages.create({
+        model: 'claude-3-5-sonnet-20241022',
+        max_tokens: 100,
+        messages: [{ role: 'user', content: hashtagPrompt }],
+      })
+
+      const hashtagText = (hashtagRes.content[0] as { type: 'text'; text: string }).text.trim()
+      hashtags = hashtagText.split(',').map((tag) => tag.trim().replace(/^#+/, ''))
+    } catch (err) {
+      console.warn('Caption generation failed, using fallback:', err)
+      caption = `Experience the taste of ${brandName}. 🍽️`
+      hashtags = ['foodstagram', 'instafood', 'foodphoto']
+    }
 
     return NextResponse.json({
-      image_url: firstAsset?.asset_url || null,
+      image_url: assets[0]?.asset_url || null,
       images: assets.map((a) => a.asset_url),
       caption,
       hashtags,

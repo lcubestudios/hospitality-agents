@@ -5,11 +5,11 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Upload, Loader2, Download, AlertCircle } from 'lucide-react'
+import { Upload, Loader2, Download, AlertCircle, X, ZoomIn } from 'lucide-react'
 
 interface GenerationResult {
   campaignId: string
-  image_url: string
+  images: string[]
   caption: string
   hashtags: string[]
 }
@@ -38,6 +38,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [result, setResult] = useState<GenerationResult | null>(null)
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
@@ -120,8 +121,8 @@ export function GenerateForm({ brand }: GenerateFormProps) {
 
       setResult({
         campaignId: campaign.id,
-        image_url: generationResult.image_url || imageUrl,
-        caption: generationResult.caption || generationResult.captions?.[0] || '',
+        images: generationResult.images || [generationResult.image_url || imageUrl],
+        caption: generationResult.caption || '',
         hashtags: generationResult.hashtags || [],
       })
 
@@ -210,59 +211,89 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       {/* Results */}
       {result && (
         <Card className="p-6">
-          <h3 className="mb-4 text-lg font-semibold text-gray-900">Generated Assets</h3>
+          <h3 className="mb-6 text-lg font-semibold text-gray-900">Campaign Album</h3>
 
-          <div className="space-y-4">
-            {/* Image */}
-            <div>
-              <h4 className="mb-2 text-sm font-medium text-gray-900">Enhanced Image</h4>
-              <img
-                src={result.image_url}
-                alt="Generated"
-                className="max-h-64 w-full rounded-lg border border-gray-200 object-cover"
-              />
+          {/* Image Grid */}
+          <div className="mb-6 grid grid-cols-2 gap-4">
+            {result.images.map((imageUrl, idx) => (
+              <div
+                key={idx}
+                className="group relative overflow-hidden rounded-lg border border-gray-200"
+              >
+                <img
+                  src={imageUrl}
+                  alt={`Campaign ${idx + 1}`}
+                  className="aspect-square w-full object-cover"
+                />
+                <button
+                  onClick={() => setLightboxImage(imageUrl)}
+                  className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/40"
+                >
+                  <ZoomIn
+                    className="text-white opacity-0 transition-opacity group-hover:opacity-100"
+                    size={28}
+                  />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Download All */}
+          <div className="mb-6 flex flex-wrap gap-2">
+            {result.images.map((imageUrl, idx) => (
               <Button
+                key={idx}
                 variant="outline"
                 size="sm"
-                className="mt-2"
                 onClick={() => {
                   const a = document.createElement('a')
-                  a.href = result.image_url
-                  a.download = `campaign-${result.campaignId}.jpg`
+                  a.href = imageUrl
+                  a.download = `campaign-${result.campaignId}-${idx + 1}.jpg`
                   a.click()
                 }}
               >
                 <Download size={14} className="mr-2" />
-                Download Image
+                Download {idx + 1}
               </Button>
+            ))}
+          </div>
+
+          {/* Caption + Hashtags */}
+          <div className="space-y-3 border-t pt-6">
+            <div>
+              <p className="text-sm leading-relaxed whitespace-pre-wrap text-gray-700">
+                {result.caption}
+              </p>
+              {result.hashtags.length > 0 && (
+                <p className="mt-3 text-sm text-gray-600">
+                  {result.hashtags.map((tag) => `#${tag}`).join(' ')}
+                </p>
+              )}
             </div>
-
-            {/* Caption */}
-            {result.caption && (
-              <div>
-                <h4 className="mb-2 text-sm font-medium text-gray-900">Caption</h4>
-                <p className="rounded-lg bg-gray-50 p-3 text-sm text-gray-700">{result.caption}</p>
-              </div>
-            )}
-
-            {/* Hashtags */}
-            {result.hashtags.length > 0 && (
-              <div>
-                <h4 className="mb-2 text-sm font-medium text-gray-900">Hashtags</h4>
-                <div className="flex flex-wrap gap-2">
-                  {result.hashtags.map((tag) => (
-                    <span
-                      key={tag}
-                      className="rounded-full bg-blue-100 px-3 py-1 text-xs text-blue-700"
-                    >
-                      #{tag}
-                    </span>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </Card>
+      )}
+
+      {/* Lightbox */}
+      {lightboxImage && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80"
+          onClick={() => setLightboxImage(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            <img
+              src={lightboxImage}
+              alt="Expanded"
+              className="max-h-[90vh] max-w-[90vw] object-contain"
+            />
+            <button
+              onClick={() => setLightboxImage(null)}
+              className="absolute top-4 right-4 rounded-full bg-white/90 p-2 transition-colors hover:bg-white"
+            >
+              <X size={20} />
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )
