@@ -503,35 +503,13 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     try {
       const subjectDesc = strategy?.subject_description || 'our latest product'
-      const brandContext = `
-Brand: ${brandName}
-Location: ${brand?.location || 'not specified'}
-Voice: ${brand?.brand_voice || 'not specified'}
-Description: ${brand?.description || 'not specified'}
-Type: ${brand?.business_type || 'restaurant'}
-Focus: ${brand?.food_drink_type || 'general food'}
-Atmosphere: ${brand?.atmosphere?.join(', ') || 'not specified'}
-${postTopic ? `Post Topic: ${postTopic}` : ''}
-`
-
       const brandVoiceToUse = brand_voice_override || brand?.brand_voice || 'not specified'
 
-      const captionPrompt = `Write an Instagram caption for "${brandName}" in ${brand?.location || 'the area'}.
+      const captionPrompt = `Write a compelling Instagram caption for ${brandName} (${brandVoiceToUse} voice).
+Product: ${subjectDesc}
+${postTopic ? `Angle: ${postTopic}` : ''}
 
-${brandContext}
-Brand voice: ${brandVoiceToUse}
-
-The food: ${subjectDesc}
-${postTopic ? `The angle: ${postTopic}` : ''}
-
-Write 2-3 sentences that:
-- Use the "${brandVoiceToUse}" voice (authentic, not generic)
-- Name the specific food/drink and why this place makes it special
-${postTopic ? `- Lead with why this matters now: "${postTopic}"` : ''}
-- Make someone want to visit or order
-- No hashtags
-
-Avoid flowery language. Be real.`
+2-3 sentences max. Authentic, specific, makes people want it. No hashtags.`
 
       const captionRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
@@ -541,30 +519,11 @@ Avoid flowery language. Be real.`
 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
-      // Generate hashtags with brand context
-      const hashtagPrompt = `Create hashtags for "${brandName}" in ${brand?.location || 'the area'}.
+      // Generate hashtags
+      const hashtagPrompt = `Generate 8-10 hashtags for: ${subjectDesc}. Brand: ${brandName} in ${brand?.location || 'the area'}.
+${postTopic ? `Context: ${postTopic}` : ''}
 
-Brand: ${brandName}
-Location: ${brand?.location || 'not specified'}
-Food/drink: ${brand?.food_drink_type || 'general'}
-Item: ${subjectDesc.split('\n')[0] || 'food'}
-${postTopic ? `Angle: ${postTopic}` : ''}
-Vibe: ${brand?.atmosphere?.join(', ') || 'casual'}
-
-Return up to 10 hashtags (no # symbol), comma-separated.
-
-REQUIRED (these drive discovery):
-- Brand hashtag: #${brandName?.toLowerCase().replace(/\s+/g, '')}
-- Location hashtag: #${brand?.location?.toLowerCase().replace(/\s+/g, '')}
-- Food type hashtag based on the item
-${postTopic ? `- Post context hashtag (e.g., #${postTopic.toLowerCase().split(' ')[0]})` : ''}
-
-THEN add:
-- Atmosphere tags based on the vibe
-- Popular food tags (foodstagram, instafood, foodie)
-- Only include what's actually relevant
-
-Format: word1, word2, word3, ...`
+Return ONLY hashtag words (no #), comma-separated. Include brand name and location.`
 
       const hashtagRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
