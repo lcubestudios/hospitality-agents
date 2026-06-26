@@ -516,25 +516,22 @@ ${postTopic ? `Post Topic: ${postTopic}` : ''}
 
       const brandVoiceToUse = brand_voice_override || brand?.brand_voice || 'not specified'
 
-      const captionPrompt = `You are creating Instagram content for "${brandName}", a food & beverage establishment.
+      const captionPrompt = `Write an Instagram caption for "${brandName}" in ${brand?.location || 'the area'}.
 
 ${brandContext}
-Brand voice to adopt: ${brandVoiceToUse}
+Brand voice: ${brandVoiceToUse}
 
-ANALYZE THE UPLOADED PHOTO: Identify the exact food/drink item shown.
-Product details: ${subjectDesc}
-${postTopic ? `Post angle/hook: "${postTopic}" — THIS IS THE MAIN FOCUS` : 'Infer the angle from what you see in the photo.'}
+The food: ${subjectDesc}
+${postTopic ? `The angle: ${postTopic}` : ''}
 
-Write a SPECIFIC, COMPELLING Instagram caption (2-3 sentences max) that:
-- Uses the "${brandVoiceToUse}" voice
-- SPECIFICALLY NAMES OR DESCRIBES the actual food/drink in the photo (not generic)
-${postTopic ? `- DIRECTLY ADDRESSES THE ANGLE: "${postTopic}" — make this central` : '- Highlights what makes THIS specific item special'}
-- Shows "${brandName}" personality through the voice
-- Creates desire and drives engagement
-- Is authentic, not templated
-- Contains NO hashtags
+Write 2-3 sentences that:
+- Use the "${brandVoiceToUse}" voice (authentic, not generic)
+- Name the specific food/drink and why this place makes it special
+${postTopic ? `- Lead with why this matters now: "${postTopic}"` : ''}
+- Make someone want to visit or order
+- No hashtags
 
-Be concrete. Not "delicious food" but "our wood-fired pizza" or "the house-made cocktail".`
+Avoid flowery language. Be real.`
 
       const captionRes = await client.messages.create({
         model: 'claude-3-5-sonnet-20241022',
@@ -545,20 +542,28 @@ Be concrete. Not "delicious food" but "our wood-fired pizza" or "the house-made 
       caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
 
       // Generate hashtags with brand context
-      const hashtagPrompt = `Generate up to 10 relevant Instagram hashtags for "${brandName}" in ${brand?.location || 'the area'} (${brand?.business_type || 'food venue'}).
-Product: ${subjectDesc}
-${postTopic ? `Post angle: ${postTopic}` : ''}
-Food/drink type: ${brand?.food_drink_type || 'general'}
+      const hashtagPrompt = `Create hashtags for "${brandName}" in ${brand?.location || 'the area'}.
 
-Return ONLY the hashtag words (no # symbol), separated by commas on a single line.
-MUST include:
-- A branded hashtag with restaurant name (e.g., #brandoname or #brandname)
-- Location-based hashtag (e.g., #brooklyn, #downtownnyc)
-- Food-specific hashtags based on the product
-- Post topic hashtag if applicable
-- Mix popular tags (foodstagram, instafood) with niche tags
+Brand: ${brandName}
+Location: ${brand?.location || 'not specified'}
+Food/drink: ${brand?.food_drink_type || 'general'}
+Item: ${subjectDesc.split('\n')[0] || 'food'}
+${postTopic ? `Angle: ${postTopic}` : ''}
+Vibe: ${brand?.atmosphere?.join(', ') || 'casual'}
 
-Quality over quantity — only truly relevant tags.
+Return up to 10 hashtags (no # symbol), comma-separated.
+
+REQUIRED (these drive discovery):
+- Brand hashtag: #${brandName?.toLowerCase().replace(/\s+/g, '')}
+- Location hashtag: #${brand?.location?.toLowerCase().replace(/\s+/g, '')}
+- Food type hashtag based on the item
+${postTopic ? `- Post context hashtag (e.g., #${postTopic.toLowerCase().split(' ')[0]})` : ''}
+
+THEN add:
+- Atmosphere tags based on the vibe
+- Popular food tags (foodstagram, instafood, foodie)
+- Only include what's actually relevant
+
 Format: word1, word2, word3, ...`
 
       const hashtagRes = await client.messages.create({
