@@ -579,7 +579,10 @@ Format: word1, word2, word3, ...`
         .filter((tag) => tag.length > 0)
         .slice(0, 10)
     } catch (err) {
-      console.warn('Caption generation failed, using fallback:', err)
+      console.error(
+        '❌ CAPTION GENERATION FAILED:',
+        err instanceof Error ? err.message : JSON.stringify(err),
+      )
       caption = `Discover what makes ${brandName} special. Every detail crafted for an unforgettable experience.`
       hashtags = ['foodstagram', 'instafood', 'foodie', 'eeeeeats']
     }
