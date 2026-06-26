@@ -213,7 +213,7 @@ async function generateImageWithGemini(
   mimeType: string,
 ): Promise<Buffer | null> {
   const res = await fetch(
-    `${BASE_URL}/models/gemini-3-pro-image:generateContent?key=${GOOGLE_API_KEY}`,
+    `${BASE_URL}/models/gemini-3.1-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
