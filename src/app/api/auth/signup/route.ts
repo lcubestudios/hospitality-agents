@@ -5,7 +5,8 @@ import { setSession } from '@/lib/session'
 
 export async function POST(req: NextRequest) {
   try {
-    const { brand_name, password } = await req.json()
+    const { brand_name, password, description, business_type, food_drink_type, location } =
+      await req.json()
 
     if (!brand_name || !password) {
       return NextResponse.json({ message: 'Brand name and password required' }, { status: 400 })
@@ -43,10 +44,10 @@ export async function POST(req: NextRequest) {
         {
           name: brand_name,
           user_id: user.id,
-          business_type: '',
-          food_drink_type: '',
-          location: '',
-          description: '',
+          business_type: business_type || '',
+          food_drink_type: food_drink_type || '',
+          location: location || '',
+          description: description || '',
           brand_voice: '',
           atmosphere: [],
           personality: [],
