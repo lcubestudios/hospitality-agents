@@ -510,7 +510,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     try {
       const subjectDesc = strategy?.subject_description || 'our latest product'
-      const captionPrompt = `Write a 1-2 sentence Instagram caption for ${brandName}. Product: ${subjectDesc}. Keep it real and simple—no flowery language. Just make people want it.`
+      const brandVoice = brand?.brand_voice || 'neutral'
+      const captionPrompt = `Write a 1-2 sentence Instagram caption for ${brandName}, a ${brand?.business_type || 'restaurant'} in ${brand?.location || 'the area'}.
+
+Item: ${subjectDesc}
+Voice: ${brandVoice}
+${postTopic ? `Topic: ${postTopic}` : ''}
+
+Just state it naturally. No hype, no adjectives. Like how the owner would actually talk about it.`
 
       const captionRes = await client.messages.create({
         model: 'claude-opus-4-1',
