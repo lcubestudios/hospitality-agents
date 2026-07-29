@@ -66,37 +66,53 @@ function buildStrategyPrompt({
   angleOrStory: string
   audience: string
 }): string {
-  return `You are the creative direction team for a trendy F&B brand's Instagram campaign. Your job: 4 distinct, visually STRIKING shot directions that stop the scroll. Think CreativebyKera — bold, designed, intentional.
+  return `You are the creative direction team for ${brandName || 'this F&B brand'}. Your job: 4 distinct, visually STRIKING shot directions that feel like THIS BRAND. Not generic food content — content that belongs to this specific restaurant and no other.
+
+BRAND IDENTITY (MUST INFORM EVERY DECISION):
+${brandProfile ? brandProfile : 'Brand context: not specified'}
+Brand voice: ${brandVoice || 'neutral'}
 
 Study the food. Describe it with precision: exact textures, colors, details. This is the hero that carries through all 4 shots.
 
-NOW — think CREATIVE DIRECTION, not just "good food photos."
+NOW — think BRAND IDENTITY. Every shot must feel like it belongs to ${brandName}.
 
-Each shot is a DESIGNED MOMENT. Think:
-- Cheese pull, smoke, steam, action
-- Ingredients floating, arranged, scattered artfully
-- Pastel or boldly designed backgrounds
-- Dynamic angles, crop into details, close-ups
-- Hands interacting naturally but dramatically
-- Props with PURPOSE — they design the frame
-- Color as design tool, not accident
-- Composition that's BOLD — not safe
+Each shot is a BOLD, DESIGNED MOMENT that transforms the food into campaign-ready content while respecting this brand's identity. Think:
+- Cheese pull caught mid-stretch at dramatic angle, smoke curling
+- Ingredients elevated, scattered with intention, or arranged architecturally
+- Backgrounds that match the brand's aesthetic AND read as intentional design — not casual, not snapshot
+- Extreme angles, tight crops into textural detail, overhead geometry, close-ups that reveal
+- Hands as compositional elements — holding, reaching, interacting with clear narrative
+- Props as DESIGNED STATEMENTS — they don't just sit, they compose the frame
+- Color palette that BELONGS to this brand but pushed for maximum visual impact
+- Composition that feels like a creative director art-directed it — architectural, bold, not safe
 
-4 distinct ideas. Each should be visually distinct. Each should feel like a designer/creative director made it, not just "put food on a plate."
+4 visually DISTINCT ideas. Each a different creative concept. Each should feel like a professional food campaign shoot, not just "different angles of the dish."
 
-VISUAL DIRECTION:
+CRITICAL DISTINCTION: The output must be OBVIOUSLY a campaign shoot:
+- Styling that reads as intentional, not natural presentation
+- Composition that shows design thinking — not just nice lighting
+- Each shot has a clear visual concept that stops the scroll
+- Props, arrangements, and details all feel chosen and purposeful
 
-Light: Modern food photography lighting. Can be natural, can be designed. The light should ENHANCE drama and showcase the food.
+VISUAL COHERENCE AS A SET:
+- All 4 share the brand's color foundation and material language
+- BUT each shot is a completely different visual concept — different lighting approach, different compositional strategy, different styling moment
+- Viewer sees all 4 and thinks: "This is clearly ${brandName}'s professional campaign. These are four DISTINCT creative directions for the same product."
+- Not random shots. Not repetitive. A curated campaign.
 
-Environment: Designed backgrounds — pastel, color-blocked, textured, or real spaces with strong character. Think trendy food content. Not generic white plate on white table.
+VISUAL DIRECTION — GROUNDED IN BRAND:
 
-Composition: Dynamic and intentional. Can be tight crops, extreme angles, overhead, close detail shots. Architectural when it works; bold and unconventional when it pops.
+Light: Modern food photography lighting that matches the brand's vibe. If ${brandName} is warm & intimate, use soft warm light. If modern & clean, use crisp directional light. The light should ENHANCE the brand's story and showcase the food.
 
-Color: Rich, designed, intentional. Not muted. The palette should support the brand and the food. Saturation is OK if it's purposeful.
+Environment: Designed backgrounds that reflect the brand's personality and atmosphere. Not generic. NOT random pastels or trendy defaults. The set should feel like it belongs to ${brandName}'s world — their color palette, their materials, their design sensibility.
 
-Props: Selective. When something is in frame, it's because it tells the story or enhances the design. Ingredients, utensils, garnishes, styled elements.
+Composition: Dynamic and intentional. Can be tight crops, extreme angles, overhead, close detail shots. Architectural when it works; bold when it pops. But always cohesive with brand personality.
 
-Food Styling: Creative moments. Not just "here is the food." Think:
+Color Palette: THIS IS CRITICAL. NOT a generic food photo palette. The color world should reflect the brand's identity, atmosphere, and personality traits listed above. Rich or minimal, warm or cool, saturated or natural — whatever fits ${brandName}. Saturation is OK if it matches the brand's aesthetic.
+
+Props: Selective. When something is in frame, it reinforces the brand's story. Materials, finishes, and objects should feel at home in ${brandName}'s world.
+
+Food Styling: Creative moments specific to this dish. Not just "here is the food." Think:
 - A cheese pull mid-stretch
 - Sauce dripping, pooling, running
 - Ingredients scattered, arranged
@@ -109,12 +125,10 @@ Human presence: Real and intentional. Hands when they add drama or story. Use th
 
 Zero text: No labels, signs, packaging text. If it's there in real life, face it away or exclude it.
 
-Brand: ${brandName || 'not specified'}
-Brand voice: ${brandVoice || 'not specified'}
-${brandProfile ? brandProfile + '\n' : ''}Campaign topic: ${postTopic || 'not specified'}
+Campaign topic: ${postTopic || 'not specified'}
 ${angleOrStory ? `Angle or story: ${angleOrStory}\n` : ''}${audience ? `Target audience: ${audience}\n` : ''}
 
-These are for a trendy, designed food brand. Go bold. Go creative. Each shot should feel like a creative director designed it.
+Every shot must feel like it belongs to ${brandName}. This is not generic trendy food content. This is content that tells THIS brand's story.
 
 Return ONLY valid JSON:
 
@@ -123,20 +137,21 @@ Return ONLY valid JSON:
   "shots": [
     {
       "shot_label": "2–4 word name",
-      "concept": "the CREATIVE IDEA. What makes this shot stop the scroll? What's the design moment?",
-      "food_styling": "SPECIFIC styling action. Cheese pull at 45°. Sauce running. Bite taken. Steam visible. Hand interacting. Be VISUAL and DRAMATIC.",
-      "set": "the DESIGNED environment. Pastel background. Textured surface. Color-blocked. Arranged props with exact positions. Make it intentional.",
-      "color_world": "design-forward palette. Rich, saturated if it works. Intentional color story.",
-      "lighting": "modern food photography lighting. Can be natural, can be designed studio. What reveals and enhances the food?",
-      "camera": "angle and crop that works for THIS shot. Can be tight detail, extreme angle, overhead. Whatever serves the design.",
+      "concept": "the BOLD CREATIVE CAMPAIGN IDEA. What's the visual hook that stops the scroll? What's the designed moment? How does this reflect ${brandName}'s identity? Be specific about WHY this shot matters.",
+      "food_styling": "SPECIFIC, INTENTIONAL styling action for a campaign shoot. Cheese pull at 45°. Sauce running mid-drip. Steam curling. Hand dramatically interacting. A detail magnified. Be VISUAL, DRAMATIC, and CLEAR about the action.",
+      "set": "the DESIGNED environment that reflects ${brandName}'s aesthetic. Materials, colors, props — everything intentional and cohesive with the brand.",
+      "color_world": "the color palette that belongs to ${brandName}. Not a generic food photo palette. Rich, minimal, warm, cool — whatever fits this brand's personality. Include specific color notes (warm terracottas, cool grays, bright citrus, deep earthy tones, etc.)",
+      "lighting": "food photography lighting that matches ${brandName}'s vibe. Warm & intimate, or crisp & modern? Natural, designed studio, or something in between? What reveals the food AND the brand's personality?",
+      "camera": "angle and crop that works for THIS shot AND this brand. Can be tight detail, extreme angle, overhead. Whatever serves both the design and the brand's visual language.",
       "human_presence": "none | hands | implied"
     }
   ]
 }
 
-- shots: exactly 4, each DISTINCT and VISUALLY STRIKING
+- shots: exactly 4, each DISTINCT and VISUALLY STRIKING, and COHESIVE with each other
 - subject_description: factual, precise
 - human_presence: exactly one of "none", "hands", "implied"
+- ALL DECISIONS MUST BE GROUNDED IN THE BRAND'S IDENTITY
 
 Output ONLY valid JSON. No markdown. No explanation.`.trim()
 }
@@ -155,14 +170,15 @@ function buildImagePrompt(
         ? 'Human presence implied only — a utensil resting mid-use, a portion already taken, a napkin pushed aside. No hands, no people visible. The evidence of someone is the story.'
         : 'No hands, no people. The food and its environment are the entire frame.'
 
-  return `[SUBJECT — NON-NEGOTIABLE]
+  return `[BRAND & SUBJECT — NON-NEGOTIABLE]
+You are creating content for ${brandName}. Every pixel must feel like it belongs to this brand.
+
 The uploaded photo shows the exact food subject you are photographing. Study it.
+These are the specific visual characteristics: ${subjectDescription}
 
-These are the specific visual characteristics of this food: ${subjectDescription}
+Every one of these details must appear in your image. Do not substitute, generalise, or approximate. The subject described is exactly what you render — not a generic stand-in. The composition, angle, and setting change. The food does not.
 
-Every one of these details must appear in your image. Do not substitute, generalise, or approximate. Do not make this food look like a generic version of itself. The subject described above is exactly what you are rendering — not a generic stand-in, not a different form of the same food type. The composition, angle, and setting change. The food does not.
-
-Do NOT reproduce the composition, framing, crop, or setting of the reference photo. Build an entirely new image per this brief. Only the food itself carries over.
+Do NOT reproduce the reference photo's composition, framing, crop, or setting. Build an entirely new image per this brief. Only the food itself carries over.
 
 [SHOT: ${shot.shot_label}]
 Concept: ${shot.concept}
@@ -170,11 +186,15 @@ Concept: ${shot.concept}
 [FOOD STYLING]
 ${shot.food_styling}
 
-[SET]
+[SET — BRAND COHERENCE CRITICAL]
 ${shot.set}
 
-[COLOR]
+This environment must feel like it belongs to ${brandName}'s world. Not a generic food photo background. The materials, finishes, and spatial feel should all cohere with the brand's identity.
+
+[COLOR PALETTE — BRAND ANCHORED]
 ${shot.color_world}
+
+This is NOT a generic food photo palette. It is the visual language of ${brandName}. Every color choice must reinforce the brand's personality and atmosphere. Apply this palette throughout the entire image — backgrounds, props, lighting tones, and the food's interaction with light.
 
 [LIGHT]
 ${shot.lighting}
@@ -187,29 +207,33 @@ Portrait/vertical orientation — 9:16, built for Instagram.
 ${humanPresenceBlock}
 
 [RENDER QUALITY]
-Professional campaign-ready photograph for ${brandName || 'this brand'}. Shot with precision: perfect focus, rich natural colours, tactile textures, depth. Feels shot by a professional food photographer who knows this brand's story. Every detail is intentional. This is published work, not a quick snap.
+PROFESSIONAL CAMPAIGN-READY PHOTOGRAPH for ${brandName}. This is ART-DIRECTED food photography, not a documentation shot. Shot with precision: perfect focus, rich natural colours, tactile textures, depth. Feels like a creative director and professional food photographer collaborated on this specific moment. The styling is INTENTIONAL. The composition is DESIGNED. This is high-end published campaign work that stops scrolls.
 
-[VISUAL STYLE — APPLY TO EVERY PIXEL]
-THIS MUST STOP THE SCROLL. Professional food photography that makes people want this food.
-Soft natural light only — window light, overcast, or practitioner light that feels like it belongs in the space. Never flash, never ring light, never artificial. Light should reveal texture and bring food to life.
-Real environments with material character — concrete, aged timber, marble, ceramic, linen, stone. Never seamless backdrops. The space should feel authentic and designed.
-Warm-neutral editorial colour grading — rich, natural, cohesive. Not desaturated, not moody, not filtered. Feels like professional food photography.
-Architectural composition — deliberate negative space, one unmistakable focal point, clean sightlines. Never busy, never cluttered.
-Maximum two or three intentional props total — every element earns its place.
+[VISUAL COHERENCE & CAMPAIGN IMPACT — APPLY TO EVERY PIXEL]
+THIS IMAGE MUST FEEL LIKE IT BELONGS TO ${brandName.toUpperCase()} AND OBVIOUSLY BE CAMPAIGN WORK.
+
+The entire image — set, colors, light, materials, mood, styling — must cohere into a single DESIGNED visual world that says: "This is a professional campaign for ${brandName}."
+
+Professional food photography grounded in ${brandName}'s aesthetic AND elevated by intentional art direction. Light that feels native to the environment but DESIGNED for maximum visual impact — never artificial, never bland, never generic documentary feel.
+Real materials with character — surfaces, textures, props — that reflect the brand's personality AND feel chosen, arranged, and styled with purpose. Never seamless backdrops. Never random. Everything is there because a creative director put it there.
+Colour grading faithful to the color_world specified above AND pushed for visual richness. Rich or minimal, warm or cool, saturated or natural — whatever fits ${brandName}. Not desaturated, not trending filters. Feels like ${brandName}'s signature visual language elevated to campaign standard.
+Architectural, BOLD composition — deliberate negative space, one unmistakable focal point, clean sightlines, strong geometry. Never busy, never cluttered, never competing focal points. The composition should READ as designed.
+Maximum two or three intentional props total — every element earns its place, belongs to the brand, and contributes to the designed moment.
 
 [ABSOLUTE HARD NO — ZERO TOLERANCE]
-- Any text, letters, words, numbers anywhere in the image — no bottle labels, no packaging, no chalkboards, no signs, no stamps, nothing with legible characters. If an object would have text on it in real life, face it away or exclude it entirely.
-- Watermarks, copyright marks, or stock photo artifacts of any kind
+- Any text, letters, words, numbers anywhere — no labels, packaging, chalkboards, signs, stamps, or legible characters. Face away or exclude.
+- Watermarks, copyright marks, stock photo artifacts
 - Crumpled, folded, or used napkins or tissues
-- Props not specified in the set brief — do not invent or add anything
+- Props not specified in the set brief — do not invent or add
 - Busy or undesigned backgrounds
-- Generic restaurant props (chalkboard menus, generic signage, stock table settings)
-- Over-manicured or fake-looking hands — real and lived-in only
+- Generic restaurant props (chalkboard menus, generic signage)
+- Over-manicured or fake-looking hands — real only
 - Stock photo aesthetic — artificial perfection, CGI sheen
 - Warped or distorted food geometry
 - Artificial glow, neon, lens flare, or HDR
 - Surreal or non-photorealistic elements
-- Multiple competing focal points`.trim()
+- Multiple competing focal points
+- A setting or atmosphere that could belong to ANY restaurant — it must feel specific to ${brandName}`.trim()
 }
 
 // ─── Gemini API call ──────────────────────────────────────────────────────────
