@@ -352,7 +352,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       : { data: null }
 
     const brandName = brand?.name ?? ''
-    const brandVoice = brand?.brand_voice ?? ''
+    const brandVoice = brand_voice_override || brand?.brand_voice || ''
 
     const brandProfileLines = [
       brand?.business_type && `Venue type: ${brand.business_type}`,

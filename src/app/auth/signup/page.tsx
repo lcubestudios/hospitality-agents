@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { BUSINESS_TYPES, FOOD_DRINK_OPTIONS, ATMOSPHERE_OPTIONS } from '@/data/brand-options'
+import { BUSINESS_TYPES, FOOD_DRINK_OPTIONS } from '@/data/brand-options'
 
 export default function SignupPage() {
   const router = useRouter()
