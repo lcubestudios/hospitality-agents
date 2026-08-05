@@ -1,14 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { BrandPanel } from '@/components/BrandPanel'
-import { CampaignCreator } from '@/components/CampaignCreator'
-import { SideNav } from '@/components/SideNav'
-import { AgentGrid } from '@/components/AgentGrid'
-import { Button } from '@/components/ui/button'
-import { ChevronLeft } from 'lucide-react'
-
-export type View = 'home' | 'campaign-creator' | 'brand'
+import { GenerateForm } from '@/components/GenerateForm'
+import { BrandCard } from '@/components/BrandCard'
+import { BrandEditModal } from '@/components/BrandEditModal'
+import { LogOut } from 'lucide-react'
 
 interface AppShellProps {
   brand: {
@@ -25,64 +21,57 @@ interface AppShellProps {
 }
 
 export function AppShell({ brand }: AppShellProps) {
-  const [activeView, setActiveView] = useState<View>('home')
+  const [editModalOpen, setEditModalOpen] = useState(false)
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  function handleSelectAgent(agentId: string) {
-    if (agentId === 'campaign-creator') {
-      setActiveView('campaign-creator')
-    }
+  const handleBrandUpdated = () => {
+    setRefreshKey((prev) => prev + 1)
+    setEditModalOpen(false)
+  }
+
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    window.location.href = '/auth/login'
   }
 
   return (
-    <>
-      <SideNav activeView={activeView} onViewChange={setActiveView} />
-      <main className="ml-48 min-h-screen bg-gray-100 p-4">
-        <div className="mx-auto max-w-4xl space-y-6">
-          {/* Back button for non-home views */}
-          {activeView !== 'home' && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setActiveView('home')}
-              className="gap-2"
-            >
-              <ChevronLeft size={18} />
-              Back to agents
-            </Button>
-          )}
+    <div className="flex min-h-screen flex-col">
+      {/* Header */}
+      <header className="border-border bg-card flex items-center justify-between border-b px-6 py-4">
+        <h1 className="text-2xl font-bold text-gray-900">DOTS</h1>
+        <button
+          onClick={handleLogout}
+          className="text-muted-foreground hover:text-foreground flex items-center gap-2 rounded-md px-3 py-2 text-sm transition-colors"
+        >
+          <LogOut size={16} />
+          Log out
+        </button>
+      </header>
 
-          {/* Home view */}
-          {activeView === 'home' && <AgentGrid onSelectAgent={handleSelectAgent} />}
+      {/* Main Content */}
+      <main className="flex flex-1 flex-col overflow-auto bg-gray-50">
+        <div className="mx-auto w-full max-w-2xl space-y-8 px-6 py-8">
+          {/* Brand Details Section */}
+          <section>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Brand Details</h2>
+            <BrandCard key={refreshKey} brand={brand} onEdit={() => setEditModalOpen(true)} />
+          </section>
 
-          {/* Campaign Creator view */}
-          {activeView === 'campaign-creator' && (
-            <div className="space-y-6">
-              <div>
-                <h2 className="mb-1 text-2xl font-bold text-gray-900">Campaign Creator</h2>
-                <p className="text-sm text-gray-500">
-                  Upload a photo, pick a style, and get a campaign-ready image, caption, and video —
-                  tailored to your brand.
-                </p>
-              </div>
-              <CampaignCreator brandId={brand.id} />
-            </div>
-          )}
-
-          {/* Settings view */}
-          {activeView === 'brand' && (
-            <BrandPanel
-              id={brand.id}
-              name={brand.name}
-              description={brand.description}
-              business_type={brand.business_type}
-              food_drink_type={brand.food_drink_type}
-              location={brand.location}
-              atmosphere={brand.atmosphere}
-              personality={brand.personality}
-            />
-          )}
+          {/* Generate Section */}
+          <section>
+            <h2 className="mb-4 text-lg font-semibold text-gray-900">Generate Campaign</h2>
+            <GenerateForm brand={brand} />
+          </section>
         </div>
       </main>
-    </>
+
+      {/* Brand Edit Modal */}
+      <BrandEditModal
+        open={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        brand={brand}
+        onSave={handleBrandUpdated}
+      />
+    </div>
   )
 }

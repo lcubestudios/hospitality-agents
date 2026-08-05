@@ -5,22 +5,16 @@ import { setSession } from '@/lib/session'
 
 export async function POST(req: NextRequest) {
   try {
-    const { brand_name, password } = await req.json()
+    const { brand_name, password, description, business_type, food_drink_type, location } =
+      await req.json()
 
     if (!brand_name || !password) {
       return NextResponse.json({ message: 'Brand name and password required' }, { status: 400 })
     }
 
-    if (password.length < 6) {
-      return NextResponse.json(
-        { message: 'Password must be at least 6 characters' },
-        { status: 400 },
-      )
-    }
-
     const supabase = await getAuthedSupabaseAdmin()
 
-    // Check if brand name already exists
+    // Check if brand already exists
     const { data: existingBrand } = await supabase
       .from('brands')
       .select('id')
@@ -28,48 +22,55 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (existingBrand) {
-      return NextResponse.json({ message: 'Brand name already taken' }, { status: 400 })
+      return NextResponse.json({ message: 'Brand name already taken' }, { status: 409 })
     }
 
-    // Create user with hashed password
-    const hashedPassword = hashPassword(password)
-    const { data: newUser, error: userError } = await supabase
+    // Create user
+    const passwordHash = hashPassword(password)
+    const { data: user, error: userError } = await supabase
       .from('users')
-      .insert({
-        password_hash: hashedPassword,
-      })
+      .insert([{ password_hash: passwordHash }])
       .select('id')
       .single()
 
-    if (userError || !newUser) {
+    if (userError || !user) {
       return NextResponse.json({ message: 'Failed to create user' }, { status: 500 })
     }
 
-    // Create brand for this user
-    const { data: newBrand, error: brandError } = await supabase
+    // Create brand
+    const { data: brand, error: brandError } = await supabase
       .from('brands')
-      .insert({
-        user_id: newUser.id,
-        name: brand_name,
-      })
+      .insert([
+        {
+          name: brand_name,
+          user_id: user.id,
+          business_type: business_type || '',
+          food_drink_type: food_drink_type || '',
+          location: location || '',
+          description: description || '',
+          brand_voice: '',
+          atmosphere: [],
+          personality: [],
+        },
+      ])
       .select('id')
       .single()
 
-    if (brandError || !newBrand) {
+    if (brandError || !brand) {
       return NextResponse.json({ message: 'Failed to create brand' }, { status: 500 })
     }
 
     // Set session
     await setSession({
-      userId: newUser.id,
-      brandId: newBrand.id,
+      userId: user.id,
+      brandId: brand.id,
       brandName: brand_name,
     })
 
     return NextResponse.json({
       message: 'Signup successful',
-      userId: newUser.id,
-      brandId: newBrand.id,
+      userId: user.id,
+      brandId: brand.id,
     })
   } catch (err) {
     console.error('Signup error:', err)
