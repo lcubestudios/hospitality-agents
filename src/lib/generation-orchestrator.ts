@@ -9,8 +9,6 @@
  * Callbacks allow introspection and intervention at step boundaries.
  */
 
-import { DirectorBrief, VisualStyle } from '@/app/api/campaigns/[id]/generate/route'
-
 /**
  * Resolved visual scene from Vision analysis (Director's Brief).
  * May include additional fields from image/video generation pipelines.
@@ -60,11 +58,11 @@ export interface OrchestrationContext {
   campaignId: string
   brandId: string
   postTopic?: string
-  visualStyle?: VisualStyle
   subjectLock?: SubjectLock
   directive?: DirectiveObject
   resolvedScene?: ResolvedScene
-  briefFromVision?: DirectorBrief
+  /** Claude campaign strategy — replaces the old DirectorBrief */
+  campaignStrategy?: unknown
   assets?: GeneratedAsset[]
   schedule?: Array<{ date: string; platform: string; content_brief: string }>
   visual_language?: { color_story: string; lighting_character: string; mood: string }
