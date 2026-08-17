@@ -61,10 +61,10 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <Label htmlFor="brand-name">Username</Label>
+            <Label htmlFor="brand-name">Brand Name</Label>
             <Input
               id="brand-name"
-              placeholder="Enter your username"
+              placeholder="Enter your brand name"
               value={brandName}
               onChange={(e) => setBrandName(e.target.value)}
               required
@@ -100,7 +100,7 @@ export default function LoginPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button type="submit" disabled={loading} className="w-full cursor-pointer">
             {loading ? 'Signing in…' : 'Sign in'}
           </Button>
         </form>

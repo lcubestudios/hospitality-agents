@@ -167,7 +167,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
               <div className="text-center">
                 <Upload className="mx-auto h-8 w-8 text-gray-400" />
                 <p className="mt-2 text-sm font-medium text-gray-900">
-                  {file ? file.name : 'Click to upload or drag and drop'}
+                  {file ? file.name : 'Click to upload'}
                 </p>
                 {!file && <p className="text-xs text-gray-500">JPG, PNG, or WebP (max 10MB)</p>}
               </div>
@@ -225,7 +225,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
           {/* Submit */}
           <Button type="submit" disabled={!file || loading} className="w-full">
             {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-            {loading ? 'Generating...' : 'Generate Campaign'}
+            {loading ? 'Generating...' : 'Generate Asset'}
           </Button>
         </form>
       </Card>
@@ -233,16 +233,16 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       {/* Results */}
       {result && (
         <Card className="p-6">
-          <h3 className="mb-6 text-lg font-semibold text-gray-900">Campaign Album</h3>
+          <h3 className="mb-6 text-lg font-semibold text-gray-900">Asset Album</h3>
 
           {/* Image Grid with Download */}
-          <div className="mb-6 grid grid-cols-2 gap-6">
+          <div className="mb-6 grid grid-cols-1 gap-6 sm:grid-cols-2">
             {result.images.map((imageUrl, idx) => (
               <div key={idx} className="flex flex-col">
                 <div className="group relative mb-2 overflow-hidden rounded-lg border border-gray-200">
                   <img
                     src={imageUrl}
-                    alt={`Campaign ${idx + 1}`}
+                    alt={`Asset ${idx + 1}`}
                     className="aspect-square w-full object-cover"
                   />
                   <button

@@ -197,7 +197,7 @@ export default function SignupPage() {
 
           {error && <p className="text-sm text-red-600">{error}</p>}
 
-          <Button type="submit" disabled={loading} className="w-full">
+          <Button type="submit" disabled={loading} className="w-full cursor-pointer">
             {loading ? 'Creating account…' : 'Sign up'}
           </Button>
         </form>
