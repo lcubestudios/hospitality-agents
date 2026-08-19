@@ -174,7 +174,10 @@ function buildImagePrompt(
         ? 'Human presence implied only — a utensil resting mid-use, a portion already taken, a napkin pushed aside. No hands, no people visible. The evidence of someone is the story.'
         : 'No hands, no people. The food and its environment are the entire frame.'
 
-  return `[BRAND & SUBJECT — NON-NEGOTIABLE]
+  return `[FORMAT — NON-NEGOTIABLE]
+9:16 vertical portrait, full-bleed. This is for Instagram Reels and Stories — the entire frame is vertical, edge to edge. No square crop, no landscape, no letterboxing, no bars top or bottom.
+
+[BRAND & SUBJECT — NON-NEGOTIABLE]
 You are creating content for ${brandName}. Every pixel must feel like it belongs to this brand.
 
 The uploaded photo shows the exact food subject you are photographing. Study it.
@@ -205,7 +208,7 @@ ${shot.lighting}
 
 [CAMERA]
 ${shot.camera}
-Portrait/vertical orientation — 9:16, built for Instagram.
+Portrait/vertical orientation — 9:16 full-bleed, built for Instagram Reels/Stories. Compose for a tall vertical frame: key subject in the vertical center third, room above and below for the format's UI overlays.
 
 [PEOPLE]
 ${humanPresenceBlock}
@@ -225,6 +228,7 @@ Architectural, BOLD composition — deliberate negative space, one unmistakable 
 Maximum two or three intentional props total — every element earns its place, belongs to the brand, and contributes to the designed moment.
 
 [ABSOLUTE HARD NO — ZERO TOLERANCE]
+- Any aspect ratio other than 9:16 vertical portrait — no square, no landscape, no pillarboxing or letterboxing
 - Any text, letters, words, numbers anywhere — no labels, packaging, chalkboards, signs, stamps, or legible characters. Face away or exclude.
 - Watermarks, copyright marks, stock photo artifacts
 - Crumpled, folded, or used napkins or tissues

@@ -5,10 +5,12 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Upload, Loader2, Download, AlertCircle, X, ZoomIn } from 'lucide-react'
+import { Upload, Loader2, Download, AlertCircle, X, ZoomIn, RefreshCw } from 'lucide-react'
 
 interface GenerationResult {
   campaignId: string
+  imageUrl: string
+  postTopic: string
   images: string[]
   caption: string
   hashtags: string[]
@@ -53,6 +55,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
   const [error, setError] = useState('')
   const [result, setResult] = useState<GenerationResult | null>(null)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+  const [retrying, setRetrying] = useState(false)
 
   const BRAND_VOICE_OPTIONS = ['Professional', 'Casual', 'Friendly', 'Luxury', 'Trendy']
   const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB — Vercel's serverless function body limit is ~4.5MB and isn't configurable
@@ -156,6 +159,8 @@ export function GenerateForm({ brand }: GenerateFormProps) {
 
       setResult({
         campaignId: campaign.id,
+        imageUrl,
+        postTopic,
         images,
         caption: generationResult.caption || '',
         hashtags: generationResult.hashtags || [],
@@ -173,6 +178,73 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       setError(err instanceof Error ? err.message : 'Something went wrong')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRetry = async () => {
+    if (!result) return
+
+    setRetrying(true)
+    setError('')
+
+    try {
+      const generateRes = await fetch(`/api/campaigns/${result.campaignId}/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          image_url: result.imageUrl,
+          post_topic: result.postTopic || null,
+          brand_voice_override: brandVoice,
+        }),
+      })
+
+      if (!generateRes.ok) {
+        throw new Error(await extractErrorMessage(generateRes, 'Retry failed'))
+      }
+
+      const generationResult = await generateRes.json()
+      const images: string[] = generationResult.images || [
+        generationResult.image_url || result.imageUrl,
+      ]
+
+      setResult({
+        ...result,
+        images,
+        caption: generationResult.caption || '',
+        hashtags: generationResult.hashtags || [],
+        totalPlanned: generationResult.total_planned || images.length,
+      })
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong')
+    } finally {
+      setRetrying(false)
+    }
+  }
+
+  const downloadImage = async (imageUrl: string, filename: string) => {
+    try {
+      const res = await fetch(imageUrl)
+      const blob = await res.blob()
+
+      // On mobile, a file share sheet lets the user "Save Image" straight to their
+      // photo gallery — a plain <a download> link saves to Files/Downloads instead.
+      const file = new File([blob], filename, { type: blob.type || 'image/jpeg' })
+      if (navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] })
+        return
+      }
+
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = filename
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+    } catch (err) {
+      if (err instanceof Error && err.name === 'AbortError') return // user cancelled the share sheet
+      console.error('Download failed:', err)
     }
   }
 
@@ -265,7 +337,18 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       {/* Results */}
       {result && (
         <Card className="p-6">
-          <h3 className="mb-2 text-lg font-semibold text-gray-900">Asset Album</h3>
+          <div className="mb-2 flex items-center justify-between gap-4">
+            <h3 className="text-lg font-semibold text-gray-900">Asset Album</h3>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRetry}
+              disabled={retrying || loading}
+            >
+              <RefreshCw size={14} className={`mr-2 ${retrying ? 'animate-spin' : ''}`} />
+              {retrying ? 'Regenerating...' : 'Regenerate'}
+            </Button>
+          </div>
 
           {result.images.length < result.totalPlanned && (
             <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-amber-800">
@@ -285,7 +368,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
                   <img
                     src={imageUrl}
                     alt={`Asset ${idx + 1}`}
-                    className="aspect-square w-full object-cover"
+                    className="aspect-[9/16] w-full object-cover"
                   />
                   <button
                     onClick={() => setLightboxImage(imageUrl)}
@@ -301,22 +384,9 @@ export function GenerateForm({ brand }: GenerateFormProps) {
                   variant="outline"
                   size="sm"
                   className="w-full"
-                  onClick={async () => {
-                    try {
-                      const res = await fetch(imageUrl)
-                      const blob = await res.blob()
-                      const url = window.URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `campaign-${result.campaignId}-${idx + 1}.jpg`
-                      document.body.appendChild(a)
-                      a.click()
-                      window.URL.revokeObjectURL(url)
-                      document.body.removeChild(a)
-                    } catch (err) {
-                      console.error('Download failed:', err)
-                    }
-                  }}
+                  onClick={() =>
+                    downloadImage(imageUrl, `campaign-${result.campaignId}-${idx + 1}.jpg`)
+                  }
                 >
                   <Download size={14} className="mr-2" />
                   Download
