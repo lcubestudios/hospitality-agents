@@ -1,3 +1,10 @@
+## [1.1.1](https://github.com/lcubestudios/hospitality-agents/compare/v1.1.0...v1.1.1) (2026-08-19)
+
+
+### Bug Fixes
+
+* instagram aspect ratio, gallery save, retry button ([d1d21fb](https://github.com/lcubestudios/hospitality-agents/commit/d1d21fbf15ae10fe2683303755b9e929b787a35c))
+
 # [1.1.0](https://github.com/lcubestudios/hospitality-agents/compare/v1.0.0...v1.1.0) (2026-08-19)
 
 
