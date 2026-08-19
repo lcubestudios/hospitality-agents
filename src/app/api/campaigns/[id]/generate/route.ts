@@ -28,6 +28,10 @@ export interface CampaignStrategy {
 
 // ─── Utilities ────────────────────────────────────────────────────────────────
 
+function getTextBlock(content: Array<{ type: string; text?: string }>): string {
+  return content.find((b) => b.type === 'text')?.text ?? ''
+}
+
 function safeParseJson<T>(raw: string): T | null {
   const cleaned = raw
     .replace(/^```json\s*/i, '')
@@ -236,6 +240,46 @@ Maximum two or three intentional props total — every element earns its place, 
 - A setting or atmosphere that could belong to ANY restaurant — it must feel specific to ${brandName}`.trim()
 }
 
+// ─── Step 4: Caption + hashtags in one call ──────────────────────────────────
+
+function buildCaptionAndHashtagsPrompt({
+  brandName,
+  businessType,
+  location,
+  subjectDesc,
+  brandVoice,
+  postTopic,
+  foodDrinkType,
+}: {
+  brandName: string
+  businessType: string
+  location: string
+  subjectDesc: string
+  brandVoice: string
+  postTopic: string
+  foodDrinkType: string
+}): string {
+  const brandSlug = brandName.toLowerCase().replace(/\s+/g, '')
+  const locationSlug = location ? location.toLowerCase().replace(/\s+/g, '') : 'local'
+
+  return `Write Instagram content for ${brandName}, a ${businessType || 'restaurant'} in ${location || 'the area'}.
+
+Item: ${subjectDesc}
+Voice: ${brandVoice}
+${postTopic ? `Topic: ${postTopic}` : ''}
+
+Caption: 1-2 sentences. State it naturally. No hype, no adjectives. Like how the owner would actually talk about it.
+
+Hashtags: exactly 8 words, no # prefix. Must include: ${brandSlug}, ${locationSlug}. Then add 1-2 ${foodDrinkType || 'food'}-specific tags. Then reach tags: foodstagram, instafood, foodporn, foodie, eatlocal, localfood.
+
+Return ONLY valid JSON, no markdown, no explanation:
+
+{
+  "caption": "the caption text",
+  "hashtags": ["tag1", "tag2", "tag3", "tag4", "tag5", "tag6", "tag7", "tag8"]
+}`.trim()
+}
+
 // ─── Gemini API call ──────────────────────────────────────────────────────────
 
 async function generateImageWithGemini(
@@ -398,8 +442,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       try {
         const client = new Anthropic()
         const strategyRes = await client.messages.create({
-          model: 'claude-sonnet-4-6',
-          max_tokens: 4000,
+          model: 'claude-opus-5',
+          max_tokens: 16000,
+          thinking: { type: 'adaptive' },
+          output_config: { effort: 'high' },
           messages: [
             {
               role: 'user',
@@ -432,7 +478,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
           ],
         })
 
-        const raw = strategyRes.content?.[0]?.type === 'text' ? strategyRes.content[0].text : ''
+        const raw = getTextBlock(strategyRes.content)
         const parsed = safeParseJson<CampaignStrategy>(raw)
         if (parsed?.subject_description && Array.isArray(parsed.shots) && parsed.shots.length > 0) {
           strategy = parsed
@@ -582,7 +628,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
     await supabase.from('campaigns').update({ status: 'completed' }).eq('id', campaignId)
 
-    // Generate caption and hashtags with Claude
+    // Generate caption and hashtags with Claude — one call, one JSON response
     const client = new Anthropic()
     let caption = ''
     let hashtags: string[] = []
@@ -590,43 +636,35 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     try {
       const subjectDesc = strategy?.subject_description || 'our latest product'
       const brandVoice = brand?.brand_voice || 'neutral'
-      const captionPrompt = `Write a 1-2 sentence Instagram caption for ${brandName}, a ${brand?.business_type || 'restaurant'} in ${brand?.location || 'the area'}.
 
-Item: ${subjectDesc}
-Voice: ${brandVoice}
-${postTopic ? `Topic: ${postTopic}` : ''}
-
-Just state it naturally. No hype, no adjectives. Like how the owner would actually talk about it.`
-
-      const captionRes = await client.messages.create({
-        model: 'claude-opus-5',
-        max_tokens: 100,
-        thinking: { type: 'disabled' },
-        output_config: { effort: 'low' },
-        messages: [{ role: 'user', content: captionPrompt }],
+      const combinedPrompt = buildCaptionAndHashtagsPrompt({
+        brandName,
+        businessType: brand?.business_type || '',
+        location: brand?.location || '',
+        subjectDesc,
+        brandVoice,
+        postTopic,
+        foodDrinkType: brand?.food_drink_type || '',
       })
 
-      caption = (captionRes.content[0] as { type: 'text'; text: string }).text.trim()
-
-      // Generate hashtags - optimized for reach
-      const hashtagPrompt = `Generate 8 hashtags for ${brandName}.
-MUST include: ${brandName.toLowerCase().replace(/\s+/g, '')}, ${brand?.location?.toLowerCase().replace(/\s+/g, '') || 'local'}
-Food type: ${brand?.food_drink_type || 'food'}
-Then add: 1-2 ${brand?.food_drink_type || 'food'}-specific tags, then reach tags (foodstagram, instafood, foodporn, foodie, eatlocal, localfood).
-Return only words (no #), comma-separated.`
-
-      const hashtagRes = await client.messages.create({
+      const res = await client.messages.create({
         model: 'claude-opus-5',
-        max_tokens: 100,
-        thinking: { type: 'disabled' },
+        max_tokens: 1024,
         output_config: { effort: 'low' },
-        messages: [{ role: 'user', content: hashtagPrompt }],
+        messages: [{ role: 'user', content: combinedPrompt }],
       })
 
-      const hashtagText = (hashtagRes.content[0] as { type: 'text'; text: string }).text.trim()
-      hashtags = hashtagText.split(',').map((tag) => tag.trim().replace(/^#+/, ''))
+      const raw = getTextBlock(res.content)
+      const parsed = safeParseJson<{ caption: string; hashtags: string[] }>(raw)
+
+      if (parsed?.caption && Array.isArray(parsed.hashtags) && parsed.hashtags.length > 0) {
+        caption = parsed.caption.trim()
+        hashtags = parsed.hashtags.map((tag) => tag.trim().replace(/^#+/, ''))
+      } else {
+        throw new Error('Malformed caption/hashtag response')
+      }
     } catch (err) {
-      console.warn('Caption generation failed, using fallback:', err)
+      console.warn('Caption/hashtag generation failed, using fallback:', err)
       caption = `Experience the taste of ${brandName}. 🍽️`
       hashtags = ['foodstagram', 'instafood', 'foodphoto']
     }
