@@ -7,7 +7,13 @@ import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Loader2 } from 'lucide-react'
-import { BUSINESS_TYPES, FOOD_DRINK_OPTIONS, ATMOSPHERE_OPTIONS } from '@/data/brand-options'
+import {
+  BUSINESS_TYPES,
+  FOOD_DRINK_OPTIONS,
+  ATMOSPHERE_OPTIONS,
+  PERSONALITY_OPTIONS,
+  MAX_PERSONALITY,
+} from '@/data/brand-options'
 
 interface Brand {
   id: string
@@ -60,6 +66,16 @@ export function BrandCard({ brand }: BrandCardProps) {
     }))
   }
 
+  const togglePersonality = (val: string) => {
+    setForm((prev) => {
+      if (prev.personality.includes(val)) {
+        return { ...prev, personality: prev.personality.filter((v) => v !== val) }
+      }
+      if (prev.personality.length >= MAX_PERSONALITY) return prev
+      return { ...prev, personality: [...prev.personality, val] }
+    })
+  }
+
   const handleSave = async () => {
     setLoading(true)
     setError('')
@@ -75,6 +91,7 @@ export function BrandCard({ brand }: BrandCardProps) {
           food_drink_type: form.food_drink_type,
           location: form.location,
           atmosphere: form.atmosphere,
+          personality: form.personality,
         }),
       })
 
@@ -218,6 +235,35 @@ export function BrandCard({ brand }: BrandCardProps) {
                 </div>
               </div>
 
+              <div className="sm:col-span-2">
+                <Label className="text-xs font-medium text-gray-500">
+                  Brand Personality{' '}
+                  <span className="text-gray-400">(pick up to {MAX_PERSONALITY})</span>
+                </Label>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  {PERSONALITY_OPTIONS.map((option) => {
+                    const selected = form.personality.includes(option)
+                    const disabled =
+                      loading || (!selected && form.personality.length >= MAX_PERSONALITY)
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => togglePersonality(option)}
+                        disabled={disabled}
+                        className={`cursor-pointer rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${
+                          selected
+                            ? 'border-blue-500 bg-blue-50 text-blue-700'
+                            : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                        } disabled:cursor-default disabled:opacity-50`}
+                      >
+                        {option}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
               {error && (
                 <div className="rounded-lg bg-red-50 p-3 text-sm text-red-700 sm:col-span-2">
                   {error}
@@ -248,6 +294,12 @@ export function BrandCard({ brand }: BrandCardProps) {
                 <div>
                   <p className="text-xs font-medium text-gray-500">Atmosphere</p>
                   <p className="text-sm text-gray-900">{data.atmosphere.join(', ')}</p>
+                </div>
+              )}
+              {data.personality.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-gray-500">Personality</p>
+                  <p className="text-sm text-gray-900">{data.personality.join(', ')}</p>
                 </div>
               )}
             </>
