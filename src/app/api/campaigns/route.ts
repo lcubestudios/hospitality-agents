@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthedSupabaseAdmin } from '@/lib/supabase/db'
-import { getCurrentUserId } from '@/lib/auth'
+import { getCurrentUserId, UnauthorizedError } from '@/lib/auth'
 
 export async function POST(req: NextRequest) {
   try {
@@ -36,6 +36,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(data, { status: 201 })
   } catch (err) {
+    if (err instanceof UnauthorizedError) {
+      return NextResponse.json({ message: 'Please log in again' }, { status: 401 })
+    }
+    console.error('Campaign create error:', err)
     return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
   }
 }

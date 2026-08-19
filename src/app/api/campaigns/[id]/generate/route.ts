@@ -242,7 +242,9 @@ async function generateImageWithGemini(
   prompt: string,
   imageBase64: string,
   mimeType: string,
+  attempt = 1,
 ): Promise<Buffer | null> {
+  const MAX_ATTEMPTS = 2
   const res = await fetch(
     `${BASE_URL}/models/gemini-3.1-flash-image:generateContent?key=${GOOGLE_API_KEY}`,
     {
@@ -271,14 +273,20 @@ async function generateImageWithGemini(
 
   if (!res.ok) {
     const errText = await res.text()
-    console.error(`Gemini generation error (${res.status}):`, errText)
+    console.error(`Gemini generation error (${res.status}), attempt ${attempt}:`, errText)
+    if (attempt < MAX_ATTEMPTS) {
+      return generateImageWithGemini(prompt, imageBase64, mimeType, attempt + 1)
+    }
     return null
   }
 
   const data = await res.json()
 
   if (!data.candidates?.[0]) {
-    console.error('No candidates in Gemini response:', data)
+    console.error(`No candidates in Gemini response, attempt ${attempt}:`, data)
+    if (attempt < MAX_ATTEMPTS) {
+      return generateImageWithGemini(prompt, imageBase64, mimeType, attempt + 1)
+    }
     return null
   }
 
@@ -289,8 +297,11 @@ async function generateImageWithGemini(
 
   if (!imagePart?.inlineData?.data) {
     console.error(
-      'No image data in Gemini response. Prompt may have been blocked by safety filters.',
+      `No image data in Gemini response, attempt ${attempt}. Prompt may have been blocked by safety filters.`,
     )
+    if (attempt < MAX_ATTEMPTS) {
+      return generateImageWithGemini(prompt, imageBase64, mimeType, attempt + 1)
+    }
     return null
   }
 
@@ -355,6 +366,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const brandVoice = brand_voice_override || brand?.brand_voice || ''
 
     const brandProfileLines = [
+      brand?.description && `Brand description: ${brand.description}`,
       brand?.business_type && `Venue type: ${brand.business_type}`,
       brand?.food_drink_type && `Food & drink focus: ${brand.food_drink_type}`,
       brand?.atmosphere?.length && `Atmosphere: ${sanitizeArrayForPrompt(brand.atmosphere, 5)}`,
@@ -433,8 +445,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       }
     }
 
-    // ── Fallback strategy: 1 generic shot ─────────────────────────────────────
+    // ── Fallback strategy: 4 generic shots ────────────────────────────────────
+    // Must still plan 4 shots here — a 1-shot fallback silently caps every
+    // downstream image count at 1 regardless of Gemini's per-shot success rate.
+    let strategyFallback = false
     if (!strategy) {
+      strategyFallback = true
       const fallbackSubject = postTopic.trim() || 'food subject'
       strategy = {
         subject_description: fallbackSubject,
@@ -451,6 +467,36 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             camera:
               'Three-quarter overhead, mid-range, dish fills 70% of frame, portrait orientation',
             human_presence: 'none',
+          },
+          {
+            shot_label: 'Overhead detail',
+            concept: 'A tight, graphic overhead view that shows texture and craft up close.',
+            food_styling: 'Natural presentation as-is, full dish visible',
+            set: 'Dark slate surface, minimal negative space',
+            color_world: 'Cool neutral tones with one warm accent from the food itself',
+            lighting: 'Crisp top-down light, soft shadow directly beneath',
+            camera: 'Straight overhead, tight crop, dish fills most of frame, portrait orientation',
+            human_presence: 'none',
+          },
+          {
+            shot_label: 'Side profile',
+            concept: 'A low, dramatic side angle that reveals height and layers.',
+            food_styling: 'Natural presentation as-is, full dish visible',
+            set: 'Simple neutral backdrop, shallow depth of field',
+            color_world: 'Warm, earthy, natural tones',
+            lighting: 'Low side light, strong directional shadow, moody roll-off',
+            camera: 'Eye-level side angle, mid-range, shallow depth of field, portrait orientation',
+            human_presence: 'none',
+          },
+          {
+            shot_label: 'In-hand moment',
+            concept: 'A lived-in, human moment — someone about to enjoy the dish.',
+            food_styling: 'Natural presentation as-is, full dish visible',
+            set: 'Casual table setting, softly blurred background',
+            color_world: 'Warm, earthy, natural tones',
+            lighting: 'Soft natural window light, warm temperature',
+            camera: 'Three-quarter angle, mid-range, portrait orientation',
+            human_presence: 'hands',
           },
         ],
       }
@@ -515,6 +561,9 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     )
 
     if (assets.length === 0) {
+      console.error(
+        `Campaign ${campaignId}: all ${shots.length} image generations failed (strategyFallback=${strategyFallback})`,
+      )
       await supabase.from('campaigns').update({ status: 'failed' }).eq('id', campaignId)
       return NextResponse.json(
         {
@@ -522,6 +571,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
             'Image generation blocked — try describing colors/shapes instead of product types',
         },
         { status: 500 },
+      )
+    }
+
+    if (assets.length < shots.length) {
+      console.warn(
+        `Campaign ${campaignId}: only ${assets.length}/${shots.length} images generated (strategyFallback=${strategyFallback})`,
       )
     }
 
@@ -544,8 +599,10 @@ ${postTopic ? `Topic: ${postTopic}` : ''}
 Just state it naturally. No hype, no adjectives. Like how the owner would actually talk about it.`
 
       const captionRes = await client.messages.create({
-        model: 'claude-opus-4-1',
+        model: 'claude-opus-5',
         max_tokens: 100,
+        thinking: { type: 'disabled' },
+        output_config: { effort: 'low' },
         messages: [{ role: 'user', content: captionPrompt }],
       })
 
@@ -559,8 +616,10 @@ Then add: 1-2 ${brand?.food_drink_type || 'food'}-specific tags, then reach tags
 Return only words (no #), comma-separated.`
 
       const hashtagRes = await client.messages.create({
-        model: 'claude-opus-4-1',
+        model: 'claude-opus-5',
         max_tokens: 100,
+        thinking: { type: 'disabled' },
+        output_config: { effort: 'low' },
         messages: [{ role: 'user', content: hashtagPrompt }],
       })
 
@@ -578,9 +637,11 @@ Return only words (no #), comma-separated.`
       caption,
       hashtags,
       campaign_strategy: strategy,
+      total_planned: shots.length,
+      strategy_fallback: strategyFallback,
     })
   } catch (err) {
-    console.error('Generation error:', err)
+    console.error(`Generation error for campaign ${(await params).id}:`, err)
     return NextResponse.json({ message: 'Generation failed' }, { status: 500 })
   }
 }

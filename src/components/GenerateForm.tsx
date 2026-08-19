@@ -12,6 +12,7 @@ interface GenerationResult {
   images: string[]
   caption: string
   hashtags: string[]
+  totalPlanned: number
 }
 
 interface Brand {
@@ -30,6 +31,18 @@ interface GenerateFormProps {
   brand: Brand
 }
 
+async function extractErrorMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json()
+    const detail = typeof body?.message === 'string' ? body.message : fallback
+    console.error(`${fallback} (${res.status}):`, body)
+    return `${detail} (${res.status})`
+  } catch {
+    console.error(`${fallback} (${res.status}): response body was not JSON`)
+    return `${fallback} (${res.status})`
+  }
+}
+
 export function GenerateForm({ brand }: GenerateFormProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [file, setFile] = useState<File | null>(null)
@@ -42,14 +55,31 @@ export function GenerateForm({ brand }: GenerateFormProps) {
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
 
   const BRAND_VOICE_OPTIONS = ['Professional', 'Casual', 'Friendly', 'Luxury', 'Trendy']
+  const MAX_FILE_SIZE = 4 * 1024 * 1024 // 4MB — Vercel's serverless function body limit is ~4.5MB and isn't configurable
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0]
     if (!selectedFile) return
 
+    const isHeic =
+      /\.(heic|heif)$/i.test(selectedFile.name) ||
+      selectedFile.type === 'image/heic' ||
+      selectedFile.type === 'image/heif'
+    if (isHeic) {
+      setError('HEIC/HEIF photos aren’t supported yet — please convert to JPG or PNG first')
+      return
+    }
+
     const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
     if (!allowedTypes.includes(selectedFile.type)) {
       setError('Only JPG, PNG, and WebP images are allowed')
+      return
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      setError(
+        `That photo is ${(selectedFile.size / (1024 * 1024)).toFixed(1)}MB — please use one under 4MB`,
+      )
       return
     }
 
@@ -85,7 +115,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       })
 
       if (!campaignRes.ok) {
-        throw new Error('Failed to create campaign')
+        throw new Error(await extractErrorMessage(campaignRes, 'Failed to create campaign'))
       }
 
       const campaign = await campaignRes.json()
@@ -101,7 +131,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       })
 
       if (!uploadRes.ok) {
-        throw new Error('Failed to upload image')
+        throw new Error(await extractErrorMessage(uploadRes, 'Failed to upload image'))
       }
 
       const { url: imageUrl } = await uploadRes.json()
@@ -118,16 +148,18 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       })
 
       if (!generateRes.ok) {
-        throw new Error('Generation failed')
+        throw new Error(await extractErrorMessage(generateRes, 'Generation failed'))
       }
 
       const generationResult = await generateRes.json()
+      const images: string[] = generationResult.images || [generationResult.image_url || imageUrl]
 
       setResult({
         campaignId: campaign.id,
-        images: generationResult.images || [generationResult.image_url || imageUrl],
+        images,
         caption: generationResult.caption || '',
         hashtags: generationResult.hashtags || [],
+        totalPlanned: generationResult.total_planned || images.length,
       })
 
       // Reset form
@@ -169,7 +201,7 @@ export function GenerateForm({ brand }: GenerateFormProps) {
                 <p className="mt-2 text-sm font-medium text-gray-900">
                   {file ? file.name : 'Click to upload or drag and drop'}
                 </p>
-                {!file && <p className="text-xs text-gray-500">JPG, PNG, or WebP (max 10MB)</p>}
+                {!file && <p className="text-xs text-gray-500">JPG, PNG, or WebP (max 4MB)</p>}
               </div>
             </div>
           </div>
@@ -233,7 +265,17 @@ export function GenerateForm({ brand }: GenerateFormProps) {
       {/* Results */}
       {result && (
         <Card className="p-6">
-          <h3 className="mb-6 text-lg font-semibold text-gray-900">Campaign Album</h3>
+          <h3 className="mb-2 text-lg font-semibold text-gray-900">Campaign Album</h3>
+
+          {result.images.length < result.totalPlanned && (
+            <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-50 p-3 text-amber-800">
+              <AlertCircle size={16} />
+              <p className="text-sm">
+                Generated {result.images.length} of {result.totalPlanned} planned images — the rest
+                were blocked or failed. Try again, or adjust the photo/topic.
+              </p>
+            </div>
+          )}
 
           {/* Image Grid with Download */}
           <div className="mb-6 grid grid-cols-2 gap-6">

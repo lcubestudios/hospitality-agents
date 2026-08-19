@@ -6,7 +6,13 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { X, Loader2 } from 'lucide-react'
-import { BUSINESS_TYPES, FOOD_DRINK_OPTIONS, ATMOSPHERE_OPTIONS } from '@/data/brand-options'
+import {
+  BUSINESS_TYPES,
+  FOOD_DRINK_OPTIONS,
+  ATMOSPHERE_OPTIONS,
+  PERSONALITY_OPTIONS,
+  MAX_PERSONALITY,
+} from '@/data/brand-options'
 
 interface Brand {
   id: string
@@ -35,6 +41,7 @@ export function BrandEditModal({ open, onOpenChange, brand, onSave }: BrandEditM
   const [foodDrinkType, setFoodDrinkType] = useState(brand.food_drink_type)
   const [location, setLocation] = useState(brand.location)
   const [atmosphere, setAtmosphere] = useState(brand.atmosphere)
+  const [personality, setPersonality] = useState(brand.personality)
 
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -54,6 +61,7 @@ export function BrandEditModal({ open, onOpenChange, brand, onSave }: BrandEditM
           food_drink_type: foodDrinkType,
           location,
           atmosphere,
+          personality,
         }),
       })
 
@@ -78,12 +86,21 @@ export function BrandEditModal({ open, onOpenChange, brand, onSave }: BrandEditM
     setFoodDrinkType(brand.food_drink_type)
     setLocation(brand.location)
     setAtmosphere(brand.atmosphere)
+    setPersonality(brand.personality)
     setError('')
     onOpenChange(false)
   }
 
   const toggleAtmosphere = (val: string) => {
     setAtmosphere((prev) => (prev.includes(val) ? prev.filter((v) => v !== val) : [...prev, val]))
+  }
+
+  const togglePersonality = (val: string) => {
+    setPersonality((prev) => {
+      if (prev.includes(val)) return prev.filter((v) => v !== val)
+      if (prev.length >= MAX_PERSONALITY) return prev
+      return [...prev, val]
+    })
   }
 
   if (!open) return null
@@ -198,6 +215,34 @@ export function BrandEditModal({ open, onOpenChange, brand, onSave }: BrandEditM
                   {option}
                 </button>
               ))}
+            </div>
+          </div>
+
+          {/* Personality */}
+          <div>
+            <Label>
+              Brand Personality{' '}
+              <span className="text-gray-500">(pick up to {MAX_PERSONALITY})</span>
+            </Label>
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {PERSONALITY_OPTIONS.map((option) => {
+                const selected = personality.includes(option)
+                const disabled = loading || (!selected && personality.length >= MAX_PERSONALITY)
+                return (
+                  <button
+                    key={option}
+                    onClick={() => togglePersonality(option)}
+                    disabled={disabled}
+                    className={`rounded-lg border-2 px-3 py-2 text-sm font-medium transition-colors ${
+                      selected
+                        ? 'border-blue-500 bg-blue-50 text-blue-700'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300'
+                    } disabled:opacity-50`}
+                  >
+                    {option}
+                  </button>
+                )
+              })}
             </div>
           </div>
 
