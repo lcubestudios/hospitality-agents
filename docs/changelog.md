@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/lcubestudios/hospitality-agents/compare/v1.0.0...v1.1.0) (2026-08-19)
+
+
+### Features
+
+* upgrade strategy to Opus 5, merge caption+hashtags ([da1f255](https://github.com/lcubestudios/hospitality-agents/commit/da1f255129aa786f1a204d06d75f97939854420e))
+
 # 1.0.0 (2026-08-19)
 
 
